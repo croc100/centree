@@ -2,6 +2,23 @@ import AppKit
 import Foundation
 import Defaults
 
+// MARK: - Geometry helpers (Codable wrappers for Defaults)
+
+public struct StoredRect: Codable, Sendable, Defaults.Serializable {
+    public var x, y, width, height: Double
+    public init(_ r: CGRect) { x = r.minX; y = r.minY; width = r.width; height = r.height }
+    public var cgRect: CGRect { CGRect(x: x, y: y, width: width, height: height) }
+}
+
+public struct SavedRegion: Identifiable, Codable, Sendable, Defaults.Serializable {
+    public let id: UUID
+    public var name: String
+    public var rect: StoredRect
+    public init(id: UUID = UUID(), name: String, rect: CGRect) {
+        self.id = id; self.name = name; self.rect = StoredRect(rect)
+    }
+}
+
 // MARK: - Defaults Keys
 
 public extension Defaults.Keys {
@@ -39,6 +56,26 @@ public extension Defaults.Keys {
 
     static let fullscreenHotkeyKeyCode = Key<UInt32>("fullscreenHotkeyKeyCode", default: 20)
     static let fullscreenHotkeyMods    = Key<UInt32>("fullscreenHotkeyMods",    default: 1_179_648)
+
+    // MARK: Hotkeys — Last Region / Window Picker (no default = 0/0 = disabled)
+
+    static let lastRegionHotkeyKeyCode   = Key<UInt32>("lastRegionHotkeyKeyCode",   default: 0)
+    static let lastRegionHotkeyMods      = Key<UInt32>("lastRegionHotkeyMods",      default: 0)
+    static let windowPickerHotkeyKeyCode = Key<UInt32>("windowPickerHotkeyKeyCode", default: 0)
+    static let windowPickerHotkeyMods    = Key<UInt32>("windowPickerHotkeyMods",    default: 0)
+
+    // MARK: Capture behaviour
+
+    /// Seconds to wait before capture fires (0 = immediate).
+    static let captureDelay = Key<Int>("captureDelay", default: 0)
+
+    // MARK: Capture history / saved regions
+
+    /// Last successfully captured region in screen coordinates.
+    static let lastCaptureRect = Key<StoredRect?>("lastCaptureRect", default: nil)
+
+    /// User-saved named regions.
+    static let savedRegions = Key<[SavedRegion]>("savedRegions", default: [])
 }
 
 // MARK: - Carbon modifier helpers

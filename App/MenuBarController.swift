@@ -1,12 +1,28 @@
 import SwiftUI
+import Defaults
 
 /// SwiftUI content for the MenuBarExtra dropdown.
 struct MenuBarMenuView: View {
     @EnvironmentObject var coordinator: CaptureCoordinator
+    @Default(.savedRegions)   var savedRegions
+    @Default(.lastCaptureRect) var lastCaptureRect
 
     var body: some View {
-        Button("Capture Region       ⌘⇧4") { coordinator.captureWithOverlay() }
-        Button("Capture Full Screen  ⌘⇧3") { coordinator.captureFullScreen() }
+        Button("Capture Region        ⌘⇧4") { coordinator.captureWithOverlay() }
+        Button("Capture Full Screen   ⌘⇧3") { coordinator.captureFullScreen() }
+        Button("Capture Window…")            { coordinator.captureWindowPicker() }
+
+        Button("Repeat Last Region") { coordinator.captureLastRegion() }
+            .disabled(lastCaptureRect == nil)
+
+        if !savedRegions.isEmpty {
+            Divider()
+            Menu("Saved Regions") {
+                ForEach(savedRegions) { region in
+                    Button(region.name) { coordinator.captureSavedRegion(id: region.id) }
+                }
+            }
+        }
 
         Divider()
 

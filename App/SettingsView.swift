@@ -9,13 +9,15 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralTab()
-                .tabItem { Label("General", systemImage: "gearshape") }
+                .tabItem { Label("General",  systemImage: "gearshape") }
             HotkeysTab()
-                .tabItem { Label("Hotkeys", systemImage: "keyboard") }
+                .tabItem { Label("Hotkeys",  systemImage: "keyboard") }
             OutputTab()
-                .tabItem { Label("Output", systemImage: "square.and.arrow.down") }
+                .tabItem { Label("Output",   systemImage: "square.and.arrow.down") }
+            RegionsTab()
+                .tabItem { Label("Regions",  systemImage: "rectangle.dashed") }
         }
-        .frame(width: 520, height: 340)
+        .frame(width: 540, height: 380)
     }
 }
 
@@ -24,6 +26,7 @@ struct SettingsView: View {
 private struct GeneralTab: View {
     @Default(.captureSoundEnabled) var soundEnabled
     @Default(.captureSoundName)    var soundName
+    @Default(.captureDelay)        var captureDelay
 
     private let sounds = ["", "Grab", "Glass", "Blow", "Funk", "Pop", "Tink"]
 
@@ -31,7 +34,6 @@ private struct GeneralTab: View {
         Form {
             Section("Sound") {
                 Toggle("Play sound after capture", isOn: $soundEnabled)
-
                 if soundEnabled {
                     Picker("Sound", selection: $soundName) {
                         ForEach(sounds, id: \.self) { name in
@@ -39,10 +41,21 @@ private struct GeneralTab: View {
                         }
                     }
                     .onChange(of: soundName) { new in
-                        let name = new.isEmpty ? "Grab" : new
-                        NSSound(named: name)?.play()
+                        NSSound(named: new.isEmpty ? "Grab" : new)?.play()
                     }
                 }
+            }
+
+            Section("Capture Delay") {
+                Stepper(value: $captureDelay, in: 0...10) {
+                    if captureDelay == 0 {
+                        Text("No delay")
+                    } else {
+                        Text("\(captureDelay) second\(captureDelay == 1 ? "" : "s")")
+                    }
+                }
+                Text("Countdown shown before every capture")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -53,24 +66,22 @@ private struct GeneralTab: View {
 // MARK: - Hotkeys Tab
 
 private struct HotkeysTab: View {
-    @Default(.regionHotkeyKeyCode)     var regionCode
-    @Default(.regionHotkeyMods)        var regionMods
-    @Default(.fullscreenHotkeyKeyCode) var fullCode
-    @Default(.fullscreenHotkeyMods)    var fullMods
+    @Default(.regionHotkeyKeyCode)       var regionCode
+    @Default(.regionHotkeyMods)          var regionMods
+    @Default(.fullscreenHotkeyKeyCode)   var fullCode
+    @Default(.fullscreenHotkeyMods)      var fullMods
+    @Default(.lastRegionHotkeyKeyCode)   var lastCode
+    @Default(.lastRegionHotkeyMods)      var lastMods
+    @Default(.windowPickerHotkeyKeyCode) var winCode
+    @Default(.windowPickerHotkeyMods)    var winMods
 
     var body: some View {
         Form {
             Section("Capture") {
-                HotkeyRow(
-                    label: "Capture Region",
-                    keyCode: $regionCode,
-                    modifiers: $regionMods
-                )
-                HotkeyRow(
-                    label: "Capture Full Screen",
-                    keyCode: $fullCode,
-                    modifiers: $fullMods
-                )
+                HotkeyRow(label: "Capture Region",       keyCode: $regionCode, modifiers: $regionMods)
+                HotkeyRow(label: "Capture Full Screen",  keyCode: $fullCode,   modifiers: $fullMods)
+                HotkeyRow(label: "Repeat Last Region",   keyCode: $lastCode,   modifiers: $lastMods)
+                HotkeyRow(label: "Capture Window…",      keyCode: $winCode,    modifiers: $winMods)
             }
         }
         .formStyle(.grouped)
@@ -89,23 +100,16 @@ private struct OutputTab: View {
             Section("Save Location") {
                 HStack {
                     Text(directory.path(percentEncoded: false))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .foregroundStyle(.secondary)
+                        .lineLimit(1).truncationMode(.middle).foregroundStyle(.secondary)
                     Spacer()
                     Button("Choose…") { pickDirectory() }
                 }
             }
-
             Section {
-                TextField("Pattern", text: $pattern)
-                    .fontDesign(.monospaced)
+                TextField("Pattern", text: $pattern).fontDesign(.monospaced)
                 Text("Tokens: %year% %month% %day% %hour% %minute% %second% %counter% %uuid%")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } header: {
-                Text("Filename Pattern")
-            }
+                    .font(.caption).foregroundStyle(.secondary)
+            } header: { Text("Filename Pattern") }
         }
         .formStyle(.grouped)
         .padding()
@@ -117,9 +121,117 @@ private struct OutputTab: View {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.prompt = "Select"
-        if panel.runModal() == .OK, let url = panel.url {
-            directory = url
+        if panel.runModal() == .OK, let url = panel.url { directory = url }
+    }
+}
+
+// MARK: - Regions Tab
+
+private struct RegionsTab: View {
+    @Default(.savedRegions)    var savedRegions
+    @Default(.lastCaptureRect) var lastCaptureRect
+
+    @State private var newName: String = ""
+    @State private var newX: String = "0"
+    @State private var newY: String = "0"
+    @State private var newW: String = "800"
+    @State private var newH: String = "600"
+    @State private var showAddForm = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Toolbar
+            HStack {
+                if let last = lastCaptureRect {
+                    Button("+ Add Last Region") {
+                        newName = "Region \(savedRegions.count + 1)"
+                        newX = String(Int(last.x)); newY = String(Int(last.y))
+                        newW = String(Int(last.width)); newH = String(Int(last.height))
+                        showAddForm = true
+                    }
+                }
+                Button("+ Add Manual") { showAddForm = true }
+                Spacer()
+            }
+            .padding(10)
+
+            if showAddForm {
+                addForm
+                Divider()
+            }
+
+            if savedRegions.isEmpty {
+                Spacer()
+                Text("No saved regions")
+                    .foregroundStyle(.secondary)
+                Spacer()
+            } else {
+                List {
+                    ForEach(savedRegions) { region in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(region.name).fontWeight(.medium)
+                                Text("\(Int(region.rect.x)), \(Int(region.rect.y))  –  \(Int(region.rect.width)) × \(Int(region.rect.height))")
+                                    .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) { delete(region) } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.red)
+                        }
+                    }
+                }
+                .listStyle(.plain)
+            }
         }
+    }
+
+    private var addForm: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Name:").frame(width: 60, alignment: .trailing)
+                TextField("Region name", text: $newName).frame(maxWidth: 160)
+            }
+            HStack {
+                Text("X:").frame(width: 60, alignment: .trailing)
+                TextField("0", text: $newX).frame(width: 60)
+                Text("Y:").frame(width: 20, alignment: .trailing)
+                TextField("0", text: $newY).frame(width: 60)
+                Text("W:").frame(width: 20, alignment: .trailing)
+                TextField("800", text: $newW).frame(width: 60)
+                Text("H:").frame(width: 20, alignment: .trailing)
+                TextField("600", text: $newH).frame(width: 60)
+            }
+            HStack {
+                Spacer()
+                Button("Cancel") { showAddForm = false; resetForm() }
+                Button("Save") { saveRegion() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(newName.isEmpty)
+            }
+        }
+        .padding(10)
+        .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    private func saveRegion() {
+        let rect = CGRect(
+            x: Double(newX) ?? 0, y: Double(newY) ?? 0,
+            width: Double(newW) ?? 800, height: Double(newH) ?? 600
+        )
+        savedRegions.append(SavedRegion(name: newName, rect: rect))
+        showAddForm = false
+        resetForm()
+    }
+
+    private func delete(_ region: SavedRegion) {
+        savedRegions.removeAll { $0.id == region.id }
+    }
+
+    private func resetForm() {
+        newName = ""; newX = "0"; newY = "0"; newW = "800"; newH = "600"
     }
 }
 
@@ -129,11 +241,10 @@ private struct HotkeyRow: View {
     let label: String
     @Binding var keyCode: UInt32
     @Binding var modifiers: UInt32
-
     @State private var isRecording = false
 
     private var displayString: String {
-        guard let key = Key(carbonKeyCode: keyCode) else { return "–" }
+        guard keyCode > 0, let key = Key(carbonKeyCode: keyCode) else { return "–" }
         return CarbonModifiers.symbol(modifiers) + key.description.uppercased()
     }
 
@@ -142,17 +253,15 @@ private struct HotkeyRow: View {
             Text(label)
             Spacer()
             HotkeyRecorderView(
-                keyCode: $keyCode,
-                modifiers: $modifiers,
-                isRecording: $isRecording,
-                displayString: displayString
+                keyCode: $keyCode, modifiers: $modifiers,
+                isRecording: $isRecording, displayString: displayString
             )
             .frame(width: 130, height: 24)
         }
     }
 }
 
-// MARK: - HotkeyRecorderView (NSViewRepresentable)
+// MARK: - HotkeyRecorderView
 
 private struct HotkeyRecorderView: NSViewRepresentable {
     @Binding var keyCode: UInt32
@@ -161,34 +270,23 @@ private struct HotkeyRecorderView: NSViewRepresentable {
     let displayString: String
 
     func makeNSView(context: Context) -> RecorderButton {
-        let btn = RecorderButton()
-        btn.coordinator = context.coordinator
-        return btn
+        let btn = RecorderButton(); btn.coordinator = context.coordinator; return btn
     }
-
     func updateNSView(_ btn: RecorderButton, context: Context) {
         btn.title = isRecording ? "Press keys…" : displayString
         btn.isRecording = isRecording
     }
-
     func makeCoordinator() -> Coordinator { Coordinator(self) }
-
-    // MARK: Coordinator
 
     final class Coordinator: NSObject {
         var parent: HotkeyRecorderView
         init(_ parent: HotkeyRecorderView) { self.parent = parent }
-
         func didRecord(keyCode: UInt32, modifiers: UInt32) {
-            parent.keyCode    = keyCode
-            parent.modifiers  = modifiers
-            parent.isRecording = false
+            parent.keyCode = keyCode; parent.modifiers = modifiers; parent.isRecording = false
         }
-        func startRecording()  { parent.isRecording = true }
+        func startRecording()  { parent.isRecording = true  }
         func cancelRecording() { parent.isRecording = false }
     }
-
-    // MARK: RecorderButton
 
     final class RecorderButton: NSButton {
         weak var coordinator: Coordinator?
@@ -196,16 +294,11 @@ private struct HotkeyRecorderView: NSViewRepresentable {
         private var monitor: Any?
 
         override init(frame: NSRect) {
-            super.init(frame: frame)
-            bezelStyle = .rounded
-            target = self
-            action = #selector(toggle)
+            super.init(frame: frame); bezelStyle = .rounded; target = self; action = #selector(toggle)
         }
         required init?(coder: NSCoder) { fatalError() }
 
-        @objc private func toggle() {
-            isRecording ? stopMonitor() : startMonitor()
-        }
+        @objc private func toggle() { isRecording ? stopMonitor() : startMonitor() }
 
         private func startMonitor() {
             coordinator?.startRecording()
@@ -214,15 +307,13 @@ private struct HotkeyRecorderView: NSViewRepresentable {
                 let carbon = CarbonModifiers.fromNSFlags(event.modifierFlags)
                 self.coordinator?.didRecord(keyCode: UInt32(event.keyCode), modifiers: carbon)
                 self.stopMonitor()
-                return nil   // consume the event
+                return nil
             }
         }
-
         private func stopMonitor() {
             if let m = monitor { NSEvent.removeMonitor(m); monitor = nil }
             coordinator?.cancelRecording()
         }
-
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             if window == nil { stopMonitor() }
@@ -230,7 +321,7 @@ private struct HotkeyRecorderView: NSViewRepresentable {
     }
 }
 
-// MARK: - Key description helper
+// MARK: - Key description
 
 extension Key: CustomStringConvertible {
     public var description: String {
@@ -248,8 +339,7 @@ extension Key: CustomStringConvertible {
         case .three: return "3"; case .four: return "4"; case .five: return "5"
         case .six: return "6"; case .seven: return "7"; case .eight: return "8"
         case .nine: return "9"
-        case .space: return "Space"
-        case .return: return "↩"; case .tab: return "⇥"
+        case .space: return "Space"; case .return: return "↩"; case .tab: return "⇥"
         case .delete: return "⌫"; case .escape: return "⎋"
         case .leftArrow: return "←"; case .rightArrow: return "→"
         case .upArrow: return "↑"; case .downArrow: return "↓"

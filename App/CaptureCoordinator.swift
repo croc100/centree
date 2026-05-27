@@ -7,33 +7,32 @@ import CentreeOverlay
 import CentreePipeline
 import Foundation
 
-/// Top-level coordinator — owns the full ShareX-style capture flow:
-///
-/// ```
-/// Hotkey → Freeze screens → Overlay with inline annotation toolbar
-///        → Render annotated image → Pipeline (clipboard + save)
-///        → Thumbnail preview
-/// ```
+/// Top-level coordinator — owns the full ShareX-style capture flow.
 @MainActor
 final class CaptureCoordinator: ObservableObject {
 
     // MARK: - Dependencies
 
-    private let capturer   = Capturer()
-    private let provider   = DisplayProvider()
-    private let pipeline   = PipelineRunner()
-    private let overlay    = OverlayWindowController()
-    private let thumbnail  = ThumbnailController()
+    private let capturer  = Capturer()
+    private let provider  = DisplayProvider()
+    private let pipeline  = PipelineRunner()
+    private let overlay   = OverlayWindowController()
+    private let thumbnail = ThumbnailController()
 
     // MARK: - Public actions
 
-    func captureWithOverlay() { Task { await runOverlayCapture() } }
-    func captureFullScreen()  { Task { await runFullScreen()    } }
+    func captureWithOverlay()         { Task { await runOverlayCapture()        } }
+    func captureFullScreen()          { Task { await runFullScreen()            } }
+    func captureLastRegion()          { Task { await runLastRegion()            } }
+    func captureWindowPicker()        { Task { await runWindowPicker()          } }
+    func captureSavedRegion(id: UUID) { Task { await runSavedRegion(id: id)    } }
 
     // MARK: - Overlay flow
 
     private func runOverlayCapture() async {
         do {
+            await applyDelay()
+
             let (displays, scWindows) = try await provider.fetchContent()
             guard !displays.isEmpty else { return }
 
@@ -46,17 +45,10 @@ final class CaptureCoordinator: ObservableObject {
             let result = await overlay.show(backgrounds: backgrounds, scWindows: scWindows)
             guard case .captured(let image, let sourceRect, let scale) = result else { return }
 
-            let screenshot = Screenshot(image: image, sourceRect: sourceRect, scaleFactor: scale)
-            let directory  = Defaults[.screenshotsDirectory]
-            createDirectoryIfNeeded(directory)
+            // Persist for Last Region
+            Defaults[.lastCaptureRect] = StoredRect(sourceRect)
 
-            let ctx = try await pipeline.run(
-                preCapture: screenshot,
-                outputs: [ClipboardOutput(), LocalFileOutput(directory: directory)]
-            )
-
-            thumbnail.show(image: image, savedAt: ctx.outputURLs.first)
-            playShutterSound()
+            await finalize(image: image, sourceRect: sourceRect, scaleFactor: scale)
 
         } catch { showError(error) }
     }
@@ -65,16 +57,75 @@ final class CaptureCoordinator: ObservableObject {
 
     private func runFullScreen() async {
         do {
+            await applyDelay()
             let shot = try await capturer.capture(mode: .fullScreen(displayID: CGMainDisplayID()))
-            let directory = Defaults[.screenshotsDirectory]
+            await finalize(image: shot.image, sourceRect: shot.sourceRect, scaleFactor: shot.scaleFactor)
+        } catch { showError(error) }
+    }
+
+    // MARK: - Last Region
+
+    private func runLastRegion() async {
+        guard let stored = Defaults[.lastCaptureRect] else {
+            // No previous region → fall back to overlay
+            await runOverlayCapture()
+            return
+        }
+        do {
+            await applyDelay()
+            let shot = try await capturer.capture(mode: .region(stored.cgRect))
+            await finalize(image: shot.image, sourceRect: shot.sourceRect, scaleFactor: shot.scaleFactor)
+        } catch { showError(error) }
+    }
+
+    // MARK: - Window Picker
+
+    private func runWindowPicker() async {
+        do {
+            let (_, scWindows) = try await provider.fetchContent()
+            guard !scWindows.isEmpty else { return }
+
+            guard let window = await WindowPickerPanel.shared.pick(from: scWindows) else { return }
+
+            await applyDelay()
+            let shot = try await capturer.capture(mode: .window(CGWindowID(window.windowID)))
+            await finalize(image: shot.image, sourceRect: shot.sourceRect, scaleFactor: shot.scaleFactor)
+        } catch { showError(error) }
+    }
+
+    // MARK: - Saved Region
+
+    private func runSavedRegion(id: UUID) async {
+        guard let region = Defaults[.savedRegions].first(where: { $0.id == id }) else { return }
+        do {
+            await applyDelay()
+            let shot = try await capturer.capture(mode: .region(region.rect.cgRect))
+            await finalize(image: shot.image, sourceRect: shot.sourceRect, scaleFactor: shot.scaleFactor)
+        } catch { showError(error) }
+    }
+
+    // MARK: - Shared finalize
+
+    private func finalize(image: CGImage, sourceRect: CGRect, scaleFactor: CGFloat) async {
+        do {
+            let screenshot = Screenshot(image: image, sourceRect: sourceRect, scaleFactor: scaleFactor)
+            let directory  = Defaults[.screenshotsDirectory]
             createDirectoryIfNeeded(directory)
             let ctx = try await pipeline.run(
-                preCapture: shot,
+                preCapture: screenshot,
                 outputs: [ClipboardOutput(), LocalFileOutput(directory: directory)]
             )
-            thumbnail.show(image: shot.image, savedAt: ctx.outputURLs.first)
+            thumbnail.show(image: image, savedAt: ctx.outputURLs.first)
             playShutterSound()
         } catch { showError(error) }
+    }
+
+    // MARK: - Delay
+
+    private func applyDelay() async {
+        let seconds = Defaults[.captureDelay]
+        guard seconds > 0 else { return }
+        await CountdownPanel.shared.show(seconds: seconds)
     }
 
     // MARK: - Helpers
