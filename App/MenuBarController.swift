@@ -4,8 +4,9 @@ import Defaults
 /// SwiftUI content for the MenuBarExtra dropdown.
 struct MenuBarMenuView: View {
     @EnvironmentObject var coordinator: CaptureCoordinator
-    @Default(.savedRegions)   var savedRegions
+    @Default(.savedRegions)    var savedRegions
     @Default(.lastCaptureRect) var lastCaptureRect
+    @ObservedObject private var autoCapture = AutoCaptureManager.shared
 
     var body: some View {
         Button("Capture Region        ⌘⇧4") { coordinator.captureWithOverlay() }
@@ -22,6 +23,14 @@ struct MenuBarMenuView: View {
                     Button(region.name) { coordinator.captureSavedRegion(id: region.id) }
                 }
             }
+        }
+
+        Divider()
+
+        Button("Color Picker") { ColorPickerPanel.shared.activate() }
+
+        Button(autoCapture.isRunning ? "Stop Auto Capture" : "Start Auto Capture") {
+            autoCapture.toggle()
         }
 
         Divider()

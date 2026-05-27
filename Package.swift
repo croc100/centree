@@ -38,6 +38,7 @@ let package = Package(
                 "CentreeOverlay",
                 "CentreeEffects",
                 "CentreePipeline",
+                "CentreeVision",
                 "CentreeWorkflow",
                 "CentreeNaming",
                 .product(name: "HotKey", package: "HotKey"),

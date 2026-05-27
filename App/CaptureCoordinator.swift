@@ -5,6 +5,7 @@ import CentreeCapture
 import CentreeCore
 import CentreeOverlay
 import CentreePipeline
+import CentreeVision
 import Foundation
 
 /// Top-level coordinator — owns the full ShareX-style capture flow.
@@ -144,6 +145,20 @@ final class CaptureCoordinator: ObservableObject {
                 thumbnail.show(image: image, savedAt: ctx.outputURLs.first)
             }
             playShutterSound()
+
+            // Pin to screen (needs raw image, done outside pipeline)
+            if optSet.contains(.pinToScreen) {
+                PinToScreenPanel.pin(image: image)
+            }
+
+            // OCR (async — show result panel when ready)
+            if optSet.contains(.ocr) {
+                Task {
+                    let text = (try? await OCRProcessor().recognizeText(in: image)) ?? ""
+                    OCRResultPanel.shared.show(text: text)
+                }
+            }
+
         } catch { showError(error) }
     }
 

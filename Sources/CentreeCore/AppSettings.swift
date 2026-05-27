@@ -84,6 +84,28 @@ public extension Defaults.Keys {
         "afterCaptureOptions",
         default: [.copyToClipboard, .saveToFile, .showNotification]
     )
+
+    // MARK: Auto Capture
+
+    static let autoCaptureEnabled  = Key<Bool>("autoCaptureEnabled",  default: false)
+    static let autoCaptureInterval = Key<Int>("autoCaptureInterval",   default: 5)
+    static let autoCaptureMode     = Key<AutoCaptureMode>("autoCaptureMode", default: .activeScreen)
+}
+
+// MARK: - Auto Capture Mode
+
+public enum AutoCaptureMode: String, CaseIterable, Codable, Sendable, Defaults.Serializable {
+    case activeScreen = "activeScreen"
+    case fullScreen   = "fullScreen"
+    case lastRegion   = "lastRegion"
+
+    public var title: String {
+        switch self {
+        case .activeScreen: return "Active Screen"
+        case .fullScreen:   return "Full Screen (All Displays)"
+        case .lastRegion:   return "Last Region"
+        }
+    }
 }
 
 // MARK: - Carbon modifier helpers

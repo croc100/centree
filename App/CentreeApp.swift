@@ -15,6 +15,13 @@ struct CentreeApp: App {
         hotkeyManager.onCaptureLastRegion   = { [self] in coordinator.captureLastRegion()    }
         hotkeyManager.onCaptureWindowPicker = { [self] in coordinator.captureWindowPicker()  }
 
+        AutoCaptureManager.shared.captureAction = { [self] mode in
+            switch mode {
+            case .activeScreen, .fullScreen: coordinator.captureFullScreen()
+            case .lastRegion:               coordinator.captureLastRegion()
+            }
+        }
+
         // Start clipboard polling immediately so history is captured from launch
         _ = ClipboardHistoryManager.shared
     }

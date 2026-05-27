@@ -29,6 +29,14 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
     /// Show the floating thumbnail notification after capture.
     case showNotification
 
+    // MARK: Image actions
+
+    /// Extract text from the captured image using Vision OCR.
+    case ocr
+
+    /// Pin the captured image to the screen as a floating overlay.
+    case pinToScreen
+
     // MARK: Metadata
 
     public var title: String {
@@ -39,6 +47,8 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .copyFilePath:    return "Copy file path to clipboard"
         case .openInViewer:    return "Open in Preview"
         case .showNotification:return "Show capture notification"
+        case .ocr:             return "Extract text (OCR)"
+        case .pinToScreen:     return "Pin to screen"
         }
     }
 
@@ -50,6 +60,8 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .copyFilePath:    return "Copies the absolute path as text"
         case .openInViewer:    return "Opens file in the default viewer (Preview)"
         case .showNotification:return "Floating thumbnail in the corner"
+        case .ocr:             return "Reads text from the image via Vision"
+        case .pinToScreen:     return "Floating window that stays on top"
         }
     }
 

@@ -26,9 +26,12 @@ struct SettingsView: View {
 // MARK: - General Tab
 
 private struct GeneralTab: View {
-    @Default(.captureSoundEnabled) var soundEnabled
-    @Default(.captureSoundName)    var soundName
-    @Default(.captureDelay)        var captureDelay
+    @Default(.captureSoundEnabled)  var soundEnabled
+    @Default(.captureSoundName)     var soundName
+    @Default(.captureDelay)         var captureDelay
+    @Default(.autoCaptureEnabled)   var autoCaptureEnabled
+    @Default(.autoCaptureInterval)  var autoCaptureInterval
+    @Default(.autoCaptureMode)      var autoCaptureMode
 
     private let sounds = ["", "Grab", "Glass", "Blow", "Funk", "Pop", "Tink"]
 
@@ -58,6 +61,24 @@ private struct GeneralTab: View {
                 }
                 Text("Countdown shown before every capture")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("Auto Capture") {
+                Toggle("Repeat capture on a timer", isOn: $autoCaptureEnabled)
+                    .onChange(of: autoCaptureEnabled) { enabled in
+                        if enabled { AutoCaptureManager.shared.start() }
+                        else       { AutoCaptureManager.shared.stop()  }
+                    }
+                if autoCaptureEnabled {
+                    Stepper(value: $autoCaptureInterval, in: 1...3600) {
+                        Text("Every \(autoCaptureInterval) second\(autoCaptureInterval == 1 ? "" : "s")")
+                    }
+                    Picker("Mode", selection: $autoCaptureMode) {
+                        ForEach(AutoCaptureMode.allCases, id: \.self) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                }
             }
         }
         .formStyle(.grouped)
@@ -132,10 +153,10 @@ private struct OutputTab: View {
 private struct PipelineTab: View {
     @Default(.afterCaptureOptions) var options
 
-    // Groups for display
     private let outputTasks: [AfterCaptureOption]    = [.copyToClipboard, .saveToFile]
     private let postSaveTasks: [AfterCaptureOption]  = [.revealInFinder, .copyFilePath, .openInViewer]
     private let notifyTasks: [AfterCaptureOption]    = [.showNotification]
+    private let imageTasks: [AfterCaptureOption]     = [.ocr, .pinToScreen]
 
     var body: some View {
         Form {
@@ -158,6 +179,12 @@ private struct PipelineTab: View {
 
             Section("Notification") {
                 ForEach(notifyTasks, id: \.self) { opt in
+                    PipelineRow(option: opt, options: $options)
+                }
+            }
+
+            Section("Image Actions") {
+                ForEach(imageTasks, id: \.self) { opt in
                     PipelineRow(option: opt, options: $options)
                 }
             }
