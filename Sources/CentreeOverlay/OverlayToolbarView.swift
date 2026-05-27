@@ -11,6 +11,8 @@ struct OverlayToolbarView: View {
     private let regionGroup: [(AnnotationTool, String, String)] = [
         (.region, "camera.viewfinder",      "Select Region"),
         (.select, "cursorarrow",             "Select / Move"),
+        (.crop,   "crop",                    "Crop"),
+        (.eraser, "eraser",                  "Eraser"),
     ]
     private let shapeGroup: [(AnnotationTool, String, String)] = [
         (.rect,      "rectangle",            "Rectangle"),
@@ -23,6 +25,11 @@ struct OverlayToolbarView: View {
         (.text,          "textformat",              "Text"),
         (.step,          "number.circle",           "Step Number"),
         (.speechBalloon, "bubble.left",             "Speech Balloon"),
+        (.emoji,         "face.smiling",            "Emoji / Sticker"),
+    ]
+    private let insertGroup: [(AnnotationTool, String, String)] = [
+        (.cursor, "cursorarrow.click",  "Mouse Cursor"),
+        (.image,  "photo",              "Insert Image"),
     ]
     private let effectGroup: [(AnnotationTool, String, String)] = [
         (.highlight, "highlighter",                       "Highlight"),
@@ -40,6 +47,8 @@ struct OverlayToolbarView: View {
             toolGroup(shapeGroup)
             divider()
             toolGroup(textGroup)
+            divider()
+            toolGroup(insertGroup)
             divider()
             toolGroup(effectGroup)
             divider()
@@ -120,8 +129,9 @@ struct OverlayToolbarView: View {
     @ViewBuilder
     private func toolOptions() -> some View {
         HStack(spacing: 6) {
-            // Color well — hidden for region/select/blur/pixelate/blackout/spotlight
-            if ![.region, .select, .blur, .pixelate, .blackout, .spotlight].contains(vm.activeTool) {
+            // Color well — hidden for region/select/blur/pixelate/blackout/spotlight/crop/eraser/cursor/image/emoji
+            if ![.region, .select, .blur, .pixelate, .blackout, .spotlight,
+                 .crop, .eraser, .cursor, .image, .emoji].contains(vm.activeTool) {
                 ColorWellRepresentable(color: $vm.strokeColor)
                     .frame(width: 28, height: 22)
             }
@@ -177,6 +187,24 @@ struct OverlayToolbarView: View {
                     }
                     .frame(width: 88)
                 }
+            }
+
+            // Emoji size
+            if vm.activeTool == .emoji {
+                Stepper(value: $vm.emojiSize, in: 16...96, step: 4) {
+                    Text("\(Int(vm.emojiSize))pt")
+                        .font(.caption).monospacedDigit().frame(width: 36)
+                }
+                .frame(width: 88)
+            }
+
+            // Cursor size
+            if vm.activeTool == .cursor {
+                Stepper(value: $vm.cursorSize, in: 16...80, step: 4) {
+                    Text("\(Int(vm.cursorSize))px")
+                        .font(.caption).monospacedDigit().frame(width: 36)
+                }
+                .frame(width: 88)
             }
         }
         .padding(.horizontal, 6)

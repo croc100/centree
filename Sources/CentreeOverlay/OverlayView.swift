@@ -1,6 +1,7 @@
 import AppKit
 import CoreImage
 import ScreenCaptureKit
+import UniformTypeIdentifiers
 
 // MARK: - Delegate
 
@@ -31,6 +32,7 @@ final class OverlayView: NSView {
     private var selectedAnnotation: Annotation?
     private var moveOrigin: NSPoint?
     private var editingTextField: NSTextField?
+    private var eraserDidPushUndo = false
     private let ciCtx = CIContext(options: [.useSoftwareRenderer: false])
 
     init(backgroundImage: CGImage, scaleFactor: CGFloat) {
@@ -47,10 +49,18 @@ final class OverlayView: NSView {
 
     func requestFinish() {
         guard let vm = viewModel, let sel = vm.selectionRect else { return }
+        // Apply crop if the user set one
+        let effectiveSel: NSRect
+        if let crop = vm.cropRect {
+            let intersection = crop.intersection(sel)
+            effectiveSel = intersection.isEmpty ? sel : intersection
+        } else {
+            effectiveSel = sel
+        }
         guard let final = vm.renderFinalImage(baseCGImage: baseCGImage,
-                                              selectionRect: sel,
+                                              selectionRect: effectiveSel,
                                               scaleFactor: scaleFactor) else { return }
-        delegate?.overlayView(self, didFinish: final, sourceRect: toScreen(sel), scaleFactor: scaleFactor)
+        delegate?.overlayView(self, didFinish: final, sourceRect: toScreen(effectiveSel), scaleFactor: scaleFactor)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -87,6 +97,24 @@ final class OverlayView: NSView {
         var allSpotlights = spotlights
         if let sp = inProgressAnnotation as? SpotlightAnnotation { allSpotlights.append(sp) }
         if !allSpotlights.isEmpty { drawSpotlightOverlay(allSpotlights) }
+
+        // Crop preview overlay
+        if let crop = vm.cropRect, !crop.isEmpty {
+            if let sel = vm.selectionRect {
+                NSGraphicsContext.saveGraphicsState()
+                let dimPath = NSBezierPath(rect: sel)
+                dimPath.append(NSBezierPath(rect: crop))
+                dimPath.windingRule = .evenOdd
+                NSColor.black.withAlphaComponent(0.4).setFill()
+                dimPath.fill()
+                NSGraphicsContext.restoreGraphicsState()
+            }
+            NSColor.systemYellow.setStroke()
+            let cropPath = NSBezierPath(rect: crop)
+            cropPath.lineWidth = 2
+            cropPath.setLineDash([6, 4], count: 2, phase: 0)
+            cropPath.stroke()
+        }
 
         if vm.activeTool == .region, dragStart == nil {
             ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.6).cgColor)
@@ -253,6 +281,17 @@ final class OverlayView: NSView {
             inProgressAnnotation = MagnifyAnnotation(
                 rect: .init(origin: pt, size: .zero),
                 scale: vm.magnifyScale, color: vm.strokeColor, lineWidth: vm.lineWidth)
+        case .emoji:
+            beginEmojiInput(at: pt, vm: vm)
+        case .cursor:
+            vm.addAnnotation(CursorAnnotation(origin: pt, size: vm.cursorSize))
+        case .image:
+            openImagePicker(at: pt, vm: vm)
+        case .crop:
+            vm.cropRect = nil
+        case .eraser:
+            if !eraserDidPushUndo { vm.pushUndo(); eraserDidPushUndo = true }
+            eraseAnnotation(at: pt, vm: vm)
         }
         needsDisplay = true
     }
@@ -295,7 +334,15 @@ final class OverlayView: NSView {
         case .magnify:
             if let s = dragStart { inProgressAnnotation = MagnifyAnnotation(
                 rect: makeRect(s, cur), scale: vm.magnifyScale, color: vm.strokeColor, lineWidth: vm.lineWidth) }
-        case .text, .step: break
+        case .crop:
+            if let s = dragStart, let sel = vm.selectionRect {
+                let raw = makeRect(s, cur)
+                let clipped = raw.intersection(sel)
+                vm.cropRect = clipped.isEmpty ? nil : clipped
+            }
+        case .eraser:
+            eraseAnnotation(at: cur, vm: vm)
+        case .text, .step, .emoji, .cursor, .image: break
         }
         needsDisplay = true
     }
@@ -324,7 +371,9 @@ final class OverlayView: NSView {
                 beginBalloonTextInput(balloon: ann, vm: vm)
             }
             inProgressAnnotation = nil
-        case .text, .step:
+        case .eraser:
+            eraserDidPushUndo = false
+        case .text, .step, .emoji, .cursor, .image, .crop:
             break
         }
         dragStart = nil; needsDisplay = true
@@ -423,7 +472,58 @@ final class OverlayView: NSView {
         case let sb as SpeechBalloonAnnotation: sb.rect = sb.rect.offsetBy(dx: dx, dy: dy)
         case let sp as SpotlightAnnotation:     sp.rect = sp.rect.offsetBy(dx: dx, dy: dy)
         case let m as MagnifyAnnotation:        m.rect  = m.rect.offsetBy(dx: dx, dy: dy)
+        case let em as EmojiAnnotation:         em.origin = .init(x: em.origin.x+dx, y: em.origin.y+dy)
+        case let cu as CursorAnnotation:        cu.origin = .init(x: cu.origin.x+dx, y: cu.origin.y+dy)
+        case let im as ImageAnnotation:         im.origin = .init(x: im.origin.x+dx, y: im.origin.y+dy)
         default: break
+        }
+    }
+
+    private func beginEmojiInput(at pt: NSPoint, vm: OverlayViewModel) {
+        guard editingTextField == nil else { return }
+        let field = NSTextField(frame: NSRect(x: pt.x, y: pt.y, width: 80, height: CGFloat(vm.emojiSize) + 16))
+        field.isBordered = true
+        field.backgroundColor = NSColor(white: 0, alpha: 0.5)
+        field.textColor = .white
+        field.font = NSFont.systemFont(ofSize: vm.emojiSize)
+        field.placeholderString = "🙂"
+        field.focusRingType = .none
+        field.alignment = .center
+        addSubview(field); editingTextField = field; window?.makeFirstResponder(field)
+        NotificationCenter.default.addObserver(
+            forName: NSControl.textDidEndEditingNotification, object: field, queue: .main
+        ) { [weak self, weak field] _ in
+            guard let self, let field else { return }
+            let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            field.removeFromSuperview(); self.editingTextField = nil
+            if !text.isEmpty {
+                vm.addAnnotation(EmojiAnnotation(origin: pt, emoji: text, fontSize: vm.emojiSize))
+            }
+            self.needsDisplay = true
+            NotificationCenter.default.removeObserver(self, name: NSControl.textDidEndEditingNotification, object: field)
+        }
+    }
+
+    private func eraseAnnotation(at pt: NSPoint, vm: OverlayViewModel) {
+        if let hit = vm.annotations.last(where: { $0.hitTest(pt) }) {
+            vm.annotations.removeAll { $0 === hit }
+            needsDisplay = true
+        }
+    }
+
+    private func openImagePicker(at pt: NSPoint, vm: OverlayViewModel) {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg, .gif, .tiff, .heic]
+        panel.canChooseFiles = true; panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.begin { [weak self] result in
+            guard result == .OK, let url = panel.url,
+                  let img = NSImage(contentsOf: url) else { return }
+            Task { @MainActor [weak self, weak vm] in
+                guard let self, let vm else { return }
+                vm.addAnnotation(ImageAnnotation(origin: pt, image: img))
+                self.needsDisplay = true
+            }
         }
     }
 

@@ -16,6 +16,9 @@ final class OverlayViewModel: ObservableObject {
     @Published var blurRadius: CGFloat = 20
     @Published var pixelateSize: CGFloat = 12
     @Published var magnifyScale: CGFloat = 2
+    @Published var emojiSize: CGFloat = 40
+    @Published var cursorSize: CGFloat = 32
+    @Published var cropRect: NSRect? = nil
 
     // MARK: Annotations
 

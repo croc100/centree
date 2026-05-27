@@ -19,6 +19,11 @@ public enum AnnotationTool: String, CaseIterable {
     case speechBalloon = "speechBalloon"// Rounded-rect speech bubble with text
     case spotlight     = "spotlight"    // Darken everything outside this region
     case magnify       = "magnify"      // Zoom loupe showing region at larger scale
+    case emoji         = "emoji"        // Place an emoji / text sticker
+    case cursor        = "cursor"       // Overlay the system arrow cursor
+    case image         = "image"        // Insert an image file
+    case crop          = "crop"         // Re-crop the captured area
+    case eraser        = "eraser"       // Erase existing annotations
 }
 
 // MARK: - Base
@@ -396,6 +401,79 @@ final class MagnifyAnnotation: Annotation {
 
     override func hitTest(_ p: NSPoint) -> Bool {
         NSBezierPath(ovalIn: rect.insetBy(dx: -6, dy: -6)).contains(p)
+    }
+}
+
+// MARK: - Emoji / Sticker
+
+final class EmojiAnnotation: Annotation {
+    var origin: NSPoint
+    var emoji: String
+    var fontSize: CGFloat
+
+    init(origin: NSPoint, emoji: String, fontSize: CGFloat) {
+        self.origin = origin; self.emoji = emoji; self.fontSize = fontSize
+        super.init(color: .clear, lineWidth: 0)
+    }
+
+    private var attrs: [NSAttributedString.Key: Any] {
+        [.font: NSFont.systemFont(ofSize: fontSize)]
+    }
+
+    override func draw(in _: NSRect) {
+        guard !emoji.isEmpty else { return }
+        NSAttributedString(string: emoji, attributes: attrs).draw(at: origin)
+    }
+
+    override func hitTest(_ p: NSPoint) -> Bool {
+        let sz = (emoji as NSString).size(withAttributes: attrs)
+        return NSRect(origin: origin, size: sz).insetBy(dx: -6, dy: -6).contains(p)
+    }
+}
+
+// MARK: - Cursor
+
+final class CursorAnnotation: Annotation {
+    var origin: NSPoint
+    var size: CGFloat
+
+    init(origin: NSPoint, size: CGFloat = 32) {
+        self.origin = origin; self.size = size
+        super.init(color: .clear, lineWidth: 0)
+    }
+
+    override func draw(in _: NSRect) {
+        NSCursor.arrow.image.draw(in: NSRect(x: origin.x, y: origin.y, width: size, height: size))
+    }
+
+    override func hitTest(_ p: NSPoint) -> Bool {
+        NSRect(x: origin.x, y: origin.y, width: size + 8, height: size + 8).contains(p)
+    }
+}
+
+// MARK: - Image
+
+final class ImageAnnotation: Annotation {
+    var origin: NSPoint
+    var nsImage: NSImage
+    var size: NSSize
+
+    init(origin: NSPoint, image: NSImage) {
+        self.origin = origin
+        self.nsImage = image
+        let maxW: CGFloat = 300
+        let w = image.size.width > 0 ? min(image.size.width, maxW) : maxW
+        let ratio = image.size.width > 0 ? image.size.height / image.size.width : 1
+        self.size = NSSize(width: w, height: w * ratio)
+        super.init(color: .clear, lineWidth: 0)
+    }
+
+    override func draw(in _: NSRect) {
+        nsImage.draw(in: NSRect(origin: origin, size: size))
+    }
+
+    override func hitTest(_ p: NSPoint) -> Bool {
+        NSRect(origin: origin, size: size).insetBy(dx: -6, dy: -6).contains(p)
     }
 }
 
