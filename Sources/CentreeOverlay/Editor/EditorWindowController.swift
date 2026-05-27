@@ -68,6 +68,7 @@ public final class EditorWindowController: NSObject, NSWindowDelegate {
         canvas.autoresizingMask = [.width, .height]
         canvas.viewModel = vm
         canvas.setBaseImage(image)
+        canvas.onEscape = { [weak self] in self?.handleCancel() }
         root.addSubview(canvas)
         canvasView = canvas
 
@@ -125,6 +126,7 @@ private struct EditorToolbarView: View {
     let onCancel: () -> Void
 
     private let tools: [(AnnotationTool, String)] = [
+        (.select,    "cursorarrow"),
         (.rect,      "rectangle"),
         (.arrow,     "arrow.up.right"),
         (.text,      "textformat"),
@@ -150,11 +152,11 @@ private struct EditorToolbarView: View {
 
             Divider().frame(height: 22)
 
-            // Color well
-            ColorWellButton(color: $vm.strokeColor)
+            // Color well (hidden for select tool)
+            if vm.activeTool != .select { ColorWellButton(color: $vm.strokeColor) }
 
-            // Line width stepper (hidden for text/step/highlight)
-            if ![.text, .step, .highlight].contains(vm.activeTool) {
+            // Line width stepper (hidden for select/text/step/highlight)
+            if ![.select, .text, .step, .highlight].contains(vm.activeTool) {
                 Stepper(value: $vm.lineWidth, in: 1...12, step: 1) {
                     Text("\(Int(vm.lineWidth))px").font(.caption).monospacedDigit()
                 }

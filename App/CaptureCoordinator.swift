@@ -1,5 +1,6 @@
 import AppKit
 import CoreGraphics
+import Defaults
 import CentreeCapture
 import CentreeCore
 import CentreeOverlay
@@ -10,42 +11,29 @@ import Foundation
 ///
 /// ```
 /// Hotkey → Freeze screens → Overlay (region / window select)
-///        → Crop pre-captured image → Pipeline (clipboard + save)
-///        → Thumbnail preview
+///        → Annotation editor → Crop pre-captured image
+///        → Pipeline (clipboard + save) → Thumbnail preview
 /// ```
 @MainActor
 final class CaptureCoordinator: ObservableObject {
 
     // MARK: - Dependencies
 
-    private let capturer       = Capturer()
-    private let provider       = DisplayProvider()
-    private let pipeline       = PipelineRunner()
-    private let overlay        = OverlayWindowController()
-    private let editor         = EditorWindowController()
-    private let thumbnail      = ThumbnailController()
-
-    // MARK: - Settings (will be moved to Defaults in Phase 6)
-
-    var screenshotsDirectory: URL {
-        get { _dir }
-        set { _dir = newValue; createDirectoryIfNeeded(newValue) }
-    }
-    private var _dir: URL = {
-        let dir = FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Centree")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }()
+    private let capturer  = Capturer()
+    private let provider  = DisplayProvider()
+    private let pipeline  = PipelineRunner()
+    private let overlay   = OverlayWindowController()
+    private let editor    = EditorWindowController()
+    private let thumbnail = ThumbnailController()
 
     // MARK: - Public actions
 
-    /// Full ShareX-style flow: freeze → overlay → crop → pipeline → thumbnail.
+    /// Full ShareX-style flow: freeze → overlay → editor → crop → pipeline → thumbnail.
     func captureWithOverlay() {
         Task { await runOverlayCapture() }
     }
 
-    /// Quick full-screen capture (no overlay). Maps to ⌘⇧3.
+    /// Quick full-screen capture (no overlay). Maps to ⌘⇧3 by default.
     func captureFullScreen() {
         Task { await runFullScreen() }
     }
@@ -67,49 +55,43 @@ final class CaptureCoordinator: ObservableObject {
 
             // 3. Show overlay, wait for user selection
             let result = await overlay.show(backgrounds: backgrounds, scWindows: scWindows)
+            guard case .region(let screenRect) = result else { return }
 
-            switch result {
-            case .cancelled:
-                return
+            // 4. Find which display was selected and crop the corresponding frozen image
+            guard let (displayFrame, displayImage) = backgrounds.first(where: {
+                $0.frame.intersects(screenRect)
+            }) else { return }
 
-            case .region(let screenRect):
-                // 4. Find which display was selected and crop the corresponding frozen image
-                guard let (displayFrame, displayImage) = backgrounds.first(where: {
-                    $0.frame.intersects(screenRect)
-                }) else { return }
+            let scale = displays.first(where: { $0.frame == displayFrame })?.backingScaleFactor ?? 2.0
 
-                let scale = displays.first(where: { $0.frame == displayFrame })?.backingScaleFactor ?? 2.0
+            guard let cropped = cropImage(
+                displayImage,
+                to: screenRect,
+                displayFrame: displayFrame,
+                scaleFactor: scale
+            ) else { return }
 
-                guard let cropped = cropImage(
-                    displayImage,
-                    to: screenRect,
-                    displayFrame: displayFrame,
-                    scaleFactor: scale
-                ) else { return }
+            // 4b. Open annotation editor
+            let editorResult = await editor.show(image: cropped, scaleFactor: scale)
+            guard case .saved(let annotated) = editorResult else { return }
 
-                // 4b. Open annotation editor
-                let editorResult = await editor.show(image: cropped, scaleFactor: scale)
-                guard case .saved(let annotated) = editorResult else { return }
+            let screenshot = Screenshot(image: annotated, sourceRect: screenRect, scaleFactor: scale)
 
-                let screenshot = Screenshot(
-                    image: annotated,
-                    sourceRect: screenRect,
-                    scaleFactor: scale
-                )
+            // 5. Pipeline: clipboard + file
+            let directory = Defaults[.screenshotsDirectory]
+            createDirectoryIfNeeded(directory)
+            let ctx = try await pipeline.run(
+                preCapture: screenshot,
+                outputs: [
+                    ClipboardOutput(),
+                    LocalFileOutput(directory: directory),
+                ]
+            )
 
-                // 5. Pipeline: clipboard + file
-                let ctx = try await pipeline.run(
-                    preCapture: screenshot,
-                    outputs: [
-                        ClipboardOutput(),
-                        LocalFileOutput(directory: screenshotsDirectory),
-                    ]
-                )
+            // 6. Thumbnail preview + sound
+            thumbnail.show(image: annotated, savedAt: ctx.outputURLs.first)
+            playShutterSound()
 
-                // 6. Thumbnail preview
-                thumbnail.show(image: annotated, savedAt: ctx.outputURLs.first)
-                NSSound(named: "Grab")?.play()
-            }
         } catch {
             showError(error)
         }
@@ -120,15 +102,18 @@ final class CaptureCoordinator: ObservableObject {
     private func runFullScreen() async {
         do {
             let shot = try await capturer.capture(mode: .fullScreen(displayID: CGMainDisplayID()))
+
+            let directory = Defaults[.screenshotsDirectory]
+            createDirectoryIfNeeded(directory)
             let ctx = try await pipeline.run(
                 preCapture: shot,
                 outputs: [
                     ClipboardOutput(),
-                    LocalFileOutput(directory: screenshotsDirectory),
+                    LocalFileOutput(directory: directory),
                 ]
             )
             thumbnail.show(image: shot.image, savedAt: ctx.outputURLs.first)
-            NSSound(named: "Grab")?.play()
+            playShutterSound()
         } catch {
             showError(error)
         }
@@ -147,20 +132,25 @@ final class CaptureCoordinator: ObservableObject {
         displayFrame: CGRect,
         scaleFactor: CGFloat
     ) -> CGImage? {
-        // Translate to display-local coordinates (still bottom-left origin, points)
-        let localX = screenRect.minX - displayFrame.minX
-        let localY = screenRect.minY - displayFrame.minY
-
-        // Flip Y to match CGImage top-left origin
+        let localX  = screenRect.minX - displayFrame.minX
+        let localY  = screenRect.minY - displayFrame.minY
         let flippedY = displayFrame.height - localY - screenRect.height
 
         let pixelRect = CGRect(
-            x: localX  * scaleFactor,
+            x: localX   * scaleFactor,
             y: flippedY * scaleFactor,
             width:  screenRect.width  * scaleFactor,
             height: screenRect.height * scaleFactor
         )
         return image.cropping(to: pixelRect)
+    }
+
+    // MARK: - Sound
+
+    private func playShutterSound() {
+        guard Defaults[.captureSoundEnabled] else { return }
+        let name = Defaults[.captureSoundName]
+        NSSound(named: name.isEmpty ? "Grab" : name)?.play()
     }
 
     // MARK: - Helpers

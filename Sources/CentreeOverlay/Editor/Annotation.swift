@@ -3,6 +3,7 @@ import AppKit
 // MARK: - Tool
 
 public enum AnnotationTool: String, CaseIterable {
+    case select    = "select"
     case rect      = "rectangle"
     case arrow     = "arrow"
     case text      = "text"
