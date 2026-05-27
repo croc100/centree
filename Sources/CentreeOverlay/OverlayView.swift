@@ -1,248 +1,356 @@
 import AppKit
+import CoreImage
 import ScreenCaptureKit
 
 // MARK: - Delegate
 
 @MainActor
 protocol OverlayViewDelegate: AnyObject {
-    /// User finished dragging a free selection.
-    func overlayView(_ view: OverlayView, didSelectRect rect: CGRect)
-    /// User clicked (no drag) on a detected window.
-    func overlayView(_ view: OverlayView, didSelectWindowFrame frame: CGRect)
-    /// User pressed Escape or right-clicked.
+    func overlayView(_ view: OverlayView, didFinish image: CGImage,
+                     sourceRect: CGRect, scaleFactor: CGFloat)
     func overlayViewDidCancel(_ view: OverlayView)
 }
 
 // MARK: - OverlayView
 
-/// Full-screen NSView that renders a frozen screenshot and handles region / window selection.
-///
-/// Coordinate system: `isFlipped = true` so (0,0) is the top-left corner of the display.
 final class OverlayView: NSView {
 
-    // MARK: Configuration
-
     weak var delegate: OverlayViewDelegate?
-    /// On-screen windows passed from SCShareableContent, used for grid highlight.
+    var viewModel: OverlayViewModel?
     var scWindows: [SCWindow] = []
 
-    // MARK: Private state
+    private var baseCGImage: CGImage
+    private var baseNSImage: NSImage
+    private var scaleFactor: CGFloat = 2.0
 
-    private let backgroundImage: NSImage
     private var dragStart: NSPoint?
-    private var selectionRect: NSRect?        // live drag rect (view coords)
-    private var hoveredWindowRect: NSRect?    // window rect in view coords
+    private var inProgressAnnotation: Annotation?
+    private var liveSelectionRect: NSRect?
+    private var hoveredWindowRect: NSRect?
     private var mousePos: NSPoint = .zero
+    private var selectedAnnotation: Annotation?
+    private var moveOrigin: NSPoint?
+    private var editingTextField: NSTextField?
+    private let ciCtx = CIContext(options: [.useSoftwareRenderer: false])
 
-    // MARK: Init
-
-    init(backgroundImage: CGImage) {
-        self.backgroundImage = NSImage(cgImage: backgroundImage, size: .zero)
+    init(backgroundImage: CGImage, scaleFactor: CGFloat) {
+        self.baseCGImage = backgroundImage
+        self.baseNSImage = NSImage(cgImage: backgroundImage, size: .zero)
+        self.scaleFactor = scaleFactor
         super.init(frame: .zero)
         wantsLayer = true
     }
 
     required init?(coder: NSCoder) { fatalError() }
-
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { true }
 
-    // MARK: - Drawing
+    func requestFinish() {
+        guard let vm = viewModel, let sel = vm.selectionRect else { return }
+        guard let final = vm.renderFinalImage(baseCGImage: baseCGImage,
+                                              selectionRect: sel,
+                                              scaleFactor: scaleFactor) else { return }
+        delegate?.overlayView(self, didFinish: final, sourceRect: toScreen(sel), scaleFactor: scaleFactor)
+    }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard let ctx = NSGraphicsContext.current?.cgContext else { return }
+        guard let ctx = NSGraphicsContext.current?.cgContext,
+              let vm = viewModel else { return }
 
-        // 1. Frozen screenshot
-        backgroundImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
-
-        // 2. Dim
+        baseNSImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
         ctx.setFillColor(NSColor.black.withAlphaComponent(0.45).cgColor)
         ctx.fill(bounds)
 
-        if let sel = selectionRect, sel.width > 2, sel.height > 2 {
-            // 3a. Punch through dim for selection
-            ctx.saveGState()
-            ctx.clip(to: sel)
-            backgroundImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
+        let displaySel = vm.selectionRect ?? liveSelectionRect
+        if let sel = displaySel, sel.width > 2, sel.height > 2 {
+            ctx.saveGState(); ctx.clip(to: sel)
+            baseNSImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
             ctx.restoreGState()
-
-            // 3b. Selection border
-            ctx.setStrokeColor(NSColor.white.cgColor)
-            ctx.setLineWidth(1.5)
+            ctx.setStrokeColor(NSColor.white.cgColor); ctx.setLineWidth(1.5)
             ctx.stroke(sel.insetBy(dx: 0.75, dy: 0.75))
-
-            // 3c. Corner handles
-            drawHandles(sel, ctx: ctx)
-
-            // 3d. Size label (above selection)
-            drawSizeLabel(sel)
-
-        } else if let win = hoveredWindowRect {
-            // 4. Window hover highlight
-            ctx.saveGState()
-            ctx.clip(to: win)
-            backgroundImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
+            drawHandles(sel, ctx: ctx); drawSizeLabel(sel)
+        } else if let win = hoveredWindowRect, vm.activeTool == .region {
+            ctx.saveGState(); ctx.clip(to: win)
+            baseNSImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
             ctx.restoreGState()
-
-            let winPath = NSBezierPath(rect: win.insetBy(dx: 1, dy: 1))
-            winPath.lineWidth = 2
-            NSColor.systemBlue.setStroke()
-            winPath.stroke()
-
+            let p = NSBezierPath(rect: win.insetBy(dx: 1, dy: 1))
+            p.lineWidth = 2; NSColor.systemBlue.setStroke(); p.stroke()
             drawSizeLabel(win)
         }
 
-        // 5. Crosshair (only when not mid-drag)
-        if dragStart == nil {
-            drawCrosshair(at: mousePos, ctx: ctx)
+        for ann in vm.annotations { drawAnnotation(ann) }
+        if let ip = inProgressAnnotation { drawAnnotation(ip) }
+
+        if vm.activeTool == .region, dragStart == nil {
+            ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.6).cgColor)
+            ctx.setLineWidth(0.5); ctx.beginPath()
+            ctx.move(to: .init(x: 0, y: mousePos.y))
+            ctx.addLine(to: .init(x: bounds.width, y: mousePos.y))
+            ctx.move(to: .init(x: mousePos.x, y: 0))
+            ctx.addLine(to: .init(x: mousePos.x, y: bounds.height))
+            ctx.strokePath()
         }
     }
 
-    // MARK: - Draw helpers
+    private func drawAnnotation(_ ann: Annotation) {
+        if let blur = ann as? BlurAnnotation      { drawBlur(blur);     return }
+        if let pix  = ann as? PixelateAnnotation  { drawPixelate(pix);  return }
+        ann.draw(in: bounds)
+    }
+
+    private func drawBlur(_ ann: BlurAnnotation) {
+        guard ann.rect.width > 4, ann.rect.height > 4 else { return }
+        let pr = pixelRect(ann.rect)
+        guard let cropped = baseCGImage.cropping(to: pr) else { return }
+        let ci = CIImage(cgImage: cropped)
+        guard let f = CIFilter(name: "CIGaussianBlur") else { return }
+        f.setValue(ci, forKey: kCIInputImageKey)
+        f.setValue(max(ann.radius, 1.0), forKey: kCIInputRadiusKey)
+        guard let out = f.outputImage else { return }
+        let sz = CGSize(width: pr.width, height: pr.height)
+        let shifted = out.transformed(by: .init(translationX: -out.extent.minX, y: -out.extent.minY))
+        if let cg = ciCtx.createCGImage(shifted, from: CGRect(origin: .zero, size: sz)) {
+            NSImage(cgImage: cg, size: ann.rect.size)
+                .draw(in: ann.rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+        }
+    }
+
+    private func drawPixelate(_ ann: PixelateAnnotation) {
+        guard ann.rect.width > 4, ann.rect.height > 4 else { return }
+        let pr = pixelRect(ann.rect)
+        guard let cropped = baseCGImage.cropping(to: pr) else { return }
+        let ci = CIImage(cgImage: cropped)
+        guard let f = CIFilter(name: "CIPixellate") else { return }
+        f.setValue(ci, forKey: kCIInputImageKey)
+        f.setValue(max(ann.pixelSize * scaleFactor / 2, 2.0), forKey: kCIInputScaleKey)
+        guard let out = f.outputImage else { return }
+        let sz = CGSize(width: pr.width, height: pr.height)
+        if let cg = ciCtx.createCGImage(out, from: CGRect(origin: .zero, size: sz)) {
+            NSImage(cgImage: cg, size: ann.rect.size)
+                .draw(in: ann.rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+        }
+    }
+
+    private func pixelRect(_ r: NSRect) -> CGRect {
+        CGRect(x: r.minX * scaleFactor, y: r.minY * scaleFactor,
+               width: r.width * scaleFactor, height: r.height * scaleFactor)
+    }
 
     private func drawHandles(_ rect: NSRect, ctx: CGContext) {
         let s: CGFloat = 6
-        let corners: [CGPoint] = [
-            .init(x: rect.minX, y: rect.minY), .init(x: rect.maxX, y: rect.minY),
-            .init(x: rect.minX, y: rect.maxY), .init(x: rect.maxX, y: rect.maxY),
-        ]
         ctx.setFillColor(NSColor.white.cgColor)
-        for c in corners {
-            ctx.fill(CGRect(x: c.x - s/2, y: c.y - s/2, width: s, height: s))
+        [CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY),
+         CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.maxX, y: rect.maxY)].forEach {
+            ctx.fill(CGRect(x: $0.x - s/2, y: $0.y - s/2, width: s, height: s))
         }
     }
 
     private func drawSizeLabel(_ rect: NSRect) {
-        let scale = window?.backingScaleFactor ?? 2.0
-        let label = "\(Int(rect.width * scale)) × \(Int(rect.height * scale))"
-        let attrs: [NSAttributedString.Key: Any] = [
-            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium),
-            .foregroundColor: NSColor.white,
-        ]
-        let str = NSAttributedString(string: label, attributes: attrs)
-        let sz = str.size()
-        let pad: CGFloat = 5
-        let lx = max(2, min(rect.midX - sz.width / 2 - pad, bounds.width - sz.width - pad * 2 - 2))
-        // Place label below selection when near top, otherwise above
+        let str = NSAttributedString(
+            string: "\(Int(rect.width * scaleFactor)) × \(Int(rect.height * scaleFactor))",
+            attributes: [.font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium),
+                         .foregroundColor: NSColor.white])
+        let sz = str.size(); let pad: CGFloat = 5
+        let lx = max(2, min(rect.midX - sz.width/2 - pad, bounds.width - sz.width - pad*2 - 2))
         let ly = rect.maxY + 6 > bounds.height - 24 ? rect.minY - sz.height - 10 : rect.maxY + 6
-
-        let bg = NSRect(x: lx, y: ly, width: sz.width + pad * 2, height: sz.height + pad)
-        let pill = NSBezierPath(roundedRect: bg, xRadius: 4, yRadius: 4)
-        NSColor(white: 0, alpha: 0.7).setFill()
-        pill.fill()
-        str.draw(at: NSPoint(x: lx + pad, y: ly + pad / 2))
+        NSBezierPath(roundedRect: NSRect(x: lx, y: ly, width: sz.width+pad*2, height: sz.height+pad),
+                     xRadius: 4, yRadius: 4).let { NSColor(white:0,alpha:0.7).setFill(); $0.fill() }
+        str.draw(at: NSPoint(x: lx + pad, y: ly + pad/2))
     }
-
-    private func drawCrosshair(at p: NSPoint, ctx: CGContext) {
-        ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.6).cgColor)
-        ctx.setLineWidth(0.5)
-        ctx.beginPath()
-        ctx.move(to: CGPoint(x: 0, y: p.y));           ctx.addLine(to: CGPoint(x: bounds.width, y: p.y))
-        ctx.move(to: CGPoint(x: p.x, y: 0));           ctx.addLine(to: CGPoint(x: p.x, y: bounds.height))
-        ctx.strokePath()
-    }
-
-    // MARK: - Mouse events
 
     override func mouseDown(with event: NSEvent) {
-        dragStart = convert(event.locationInWindow, from: nil)
-        selectionRect = nil
-        hoveredWindowRect = nil
+        guard let vm = viewModel else { return }
+        let pt = convert(event.locationInWindow, from: nil)
+        dragStart = pt
+
+        switch vm.activeTool {
+        case .region:
+            liveSelectionRect = nil; hoveredWindowRect = nil
+        case .select:
+            selectedAnnotation = vm.annotations.last(where: { $0.hitTest(pt) })
+            moveOrigin = pt
+        case .text:
+            beginTextInput(at: pt, vm: vm)
+        case .step:
+            vm.addAnnotation(StepAnnotation(center: pt, number: vm.nextStepNumber, color: vm.strokeColor))
+        case .rect:
+            inProgressAnnotation = RectAnnotation(rect: .init(origin: pt, size: .zero),
+                                                  color: vm.strokeColor, lineWidth: vm.lineWidth)
+        case .ellipse:
+            inProgressAnnotation = EllipseAnnotation(rect: .init(origin: pt, size: .zero),
+                                                     color: vm.strokeColor, lineWidth: vm.lineWidth)
+        case .line:
+            inProgressAnnotation = LineAnnotation(start: pt, end: pt,
+                                                  color: vm.strokeColor, lineWidth: vm.lineWidth)
+        case .arrow:
+            inProgressAnnotation = ArrowAnnotation(start: pt, end: pt,
+                                                   color: vm.strokeColor, lineWidth: vm.lineWidth)
+        case .highlight:
+            inProgressAnnotation = HighlightAnnotation(rect: .init(origin: pt, size: .zero),
+                                                       color: vm.strokeColor)
+        case .pen:
+            let pen = PenAnnotation(color: vm.strokeColor, lineWidth: vm.lineWidth)
+            pen.addPoint(pt); vm.pushUndo(); vm.annotations.append(pen)
+            inProgressAnnotation = nil
+        case .blur:
+            inProgressAnnotation = BlurAnnotation(rect: .init(origin: pt, size: .zero),
+                                                  radius: vm.blurRadius)
+        case .pixelate:
+            inProgressAnnotation = PixelateAnnotation(rect: .init(origin: pt, size: .zero),
+                                                      pixelSize: vm.pixelateSize)
+        case .blackout:
+            inProgressAnnotation = BlackoutAnnotation(rect: .init(origin: pt, size: .zero))
+        }
         needsDisplay = true
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard let start = dragStart else { return }
+        guard let vm = viewModel else { return }
         let cur = convert(event.locationInWindow, from: nil)
-        selectionRect = NSRect(
-            x: min(start.x, cur.x), y: min(start.y, cur.y),
-            width: abs(cur.x - start.x), height: abs(cur.y - start.y)
-        )
+
+        switch vm.activeTool {
+        case .region:
+            if let s = dragStart { liveSelectionRect = makeRect(s, cur) }
+        case .select:
+            if let sel = selectedAnnotation, let o = moveOrigin {
+                moveAnnotation(sel, dx: cur.x - o.x, dy: cur.y - o.y); moveOrigin = cur
+            }
+        case .rect:
+            if let s = dragStart { inProgressAnnotation = RectAnnotation(rect: makeRect(s, cur), color: vm.strokeColor, lineWidth: vm.lineWidth) }
+        case .ellipse:
+            if let s = dragStart { inProgressAnnotation = EllipseAnnotation(rect: makeRect(s, cur), color: vm.strokeColor, lineWidth: vm.lineWidth) }
+        case .line:
+            if let s = dragStart { inProgressAnnotation = LineAnnotation(start: s, end: cur, color: vm.strokeColor, lineWidth: vm.lineWidth) }
+        case .arrow:
+            if let s = dragStart { inProgressAnnotation = ArrowAnnotation(start: s, end: cur, color: vm.strokeColor, lineWidth: vm.lineWidth) }
+        case .highlight:
+            if let s = dragStart { inProgressAnnotation = HighlightAnnotation(rect: makeRect(s, cur), color: vm.strokeColor) }
+        case .pen:
+            (vm.annotations.last as? PenAnnotation)?.addPoint(cur)
+        case .blur:
+            if let s = dragStart { inProgressAnnotation = BlurAnnotation(rect: makeRect(s, cur), radius: vm.blurRadius) }
+        case .pixelate:
+            if let s = dragStart { inProgressAnnotation = PixelateAnnotation(rect: makeRect(s, cur), pixelSize: vm.pixelateSize) }
+        case .blackout:
+            if let s = dragStart { inProgressAnnotation = BlackoutAnnotation(rect: makeRect(s, cur)) }
+        case .text, .step: break
+        }
         needsDisplay = true
     }
 
     override func mouseUp(with event: NSEvent) {
-        defer { dragStart = nil; selectionRect = nil; hoveredWindowRect = nil }
-
-        if let sel = selectionRect, sel.width > 5, sel.height > 5 {
-            delegate?.overlayView(self, didSelectRect: toScreen(sel))
-        } else if let win = hoveredWindowRect {
-            delegate?.overlayView(self, didSelectWindowFrame: toScreen(win))
+        guard let vm = viewModel else { return }
+        switch vm.activeTool {
+        case .region:
+            if let live = liveSelectionRect, live.width > 5, live.height > 5 {
+                vm.selectionRect = live
+            } else if let win = hoveredWindowRect {
+                vm.selectionRect = toViewRect(win)
+            }
+            liveSelectionRect = nil
+        case .select:
+            moveOrigin = nil
+        case .pen:
+            break
+        case .rect, .ellipse, .line, .arrow, .highlight, .blur, .pixelate, .blackout:
+            if let ann = inProgressAnnotation { vm.addAnnotation(ann) }
+            inProgressAnnotation = nil
+        case .text, .step:
+            break
         }
-        // tap without movement → cancel
-        else {
-            delegate?.overlayViewDidCancel(self)
-        }
+        dragStart = nil; needsDisplay = true
     }
 
     override func mouseMoved(with event: NSEvent) {
         mousePos = convert(event.locationInWindow, from: nil)
-        updateHoveredWindow()
+        if viewModel?.activeTool == .region { updateHoveredWindow() }
         needsDisplay = true
     }
 
-    override func rightMouseDown(with event: NSEvent) {
-        delegate?.overlayViewDidCancel(self)
-    }
+    override func rightMouseDown(with event: NSEvent) { delegate?.overlayViewDidCancel(self) }
 
     override func keyDown(with event: NSEvent) {
-        guard event.keyCode == 53 else { return } // Escape
-        delegate?.overlayViewDidCancel(self)
+        if event.keyCode == 53 {   // ESC
+            if editingTextField != nil { window?.makeFirstResponder(self) }
+            else { delegate?.overlayViewDidCancel(self) }
+            return
+        }
+        if event.keyCode == 36 || event.keyCode == 76 { requestFinish(); return }  // Return
+        if (event.keyCode == 51 || event.keyCode == 117), let vm = viewModel, let sel = selectedAnnotation {
+            vm.pushUndo(); vm.annotations.removeAll { $0 === sel }; selectedAnnotation = nil
+            needsDisplay = true; return
+        }
+        super.keyDown(with: event)
     }
 
-    // MARK: - Window grid detection
+    private func beginTextInput(at pt: NSPoint, vm: OverlayViewModel) {
+        guard editingTextField == nil else { return }
+        let field = NSTextField(frame: NSRect(x: pt.x, y: pt.y, width: 200, height: 32))
+        field.isBordered = true; field.backgroundColor = NSColor(white:0,alpha:0.5)
+        field.textColor = vm.strokeColor
+        field.font = NSFont.systemFont(ofSize: vm.fontSize, weight: .semibold)
+        field.placeholderString = "Type…"; field.focusRingType = .none
+        addSubview(field); editingTextField = field; window?.makeFirstResponder(field)
+        NotificationCenter.default.addObserver(forName: NSControl.textDidEndEditingNotification,
+                                               object: field, queue: .main) { [weak self, weak field] _ in
+            guard let self, let field else { return }
+            let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            field.removeFromSuperview(); self.editingTextField = nil
+            if !text.isEmpty {
+                vm.addAnnotation(TextAnnotation(origin: pt, text: text,
+                                                color: vm.strokeColor, fontSize: vm.fontSize))
+            }
+            self.needsDisplay = true; NotificationCenter.default.removeObserver(self)
+        }
+    }
 
     private func updateHoveredWindow() {
-        guard dragStart == nil, let nsWin = window else {
-            hoveredWindowRect = nil; return
+        guard let w = window else { hoveredWindowRect = nil; return }
+        let sp = w.convertToScreen(NSRect(origin: mousePos.unflipped(in: bounds), size: .zero)).origin
+        let hit = scWindows.filter { $0.frame.contains(sp) && $0.frame.width > 10 }
+                           .max { $0.windowLayer < $1.windowLayer }
+        hoveredWindowRect = hit.map { $0.frame }
+    }
+
+    private func moveAnnotation(_ ann: Annotation, dx: CGFloat, dy: CGFloat) {
+        switch ann {
+        case let r as RectAnnotation:      r.rect   = r.rect.offsetBy(dx: dx, dy: dy)
+        case let e as EllipseAnnotation:   e.rect   = e.rect.offsetBy(dx: dx, dy: dy)
+        case let a as ArrowAnnotation:     a.start  = .init(x: a.start.x+dx, y: a.start.y+dy); a.end = .init(x: a.end.x+dx, y: a.end.y+dy)
+        case let l as LineAnnotation:      l.start  = .init(x: l.start.x+dx, y: l.start.y+dy); l.end = .init(x: l.end.x+dx, y: l.end.y+dy)
+        case let t as TextAnnotation:      t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
+        case let h as HighlightAnnotation: h.rect   = h.rect.offsetBy(dx: dx, dy: dy)
+        case let p as PenAnnotation:       p.points = p.points.map { .init(x: $0.x+dx, y: $0.y+dy) }
+        case let s as StepAnnotation:      s.center = .init(x: s.center.x+dx, y: s.center.y+dy)
+        case let b as BlurAnnotation:      b.rect   = b.rect.offsetBy(dx: dx, dy: dy)
+        case let x as PixelateAnnotation:  x.rect   = x.rect.offsetBy(dx: dx, dy: dy)
+        case let k as BlackoutAnnotation:  k.rect   = k.rect.offsetBy(dx: dx, dy: dy)
+        default: break
         }
-        let screenPoint = nsWin.convertToScreen(NSRect(origin: mousePos.unflipped(in: bounds), size: .zero)).origin
-
-        // Find topmost SCWindow containing this screen point
-        let hit = scWindows
-            .filter { $0.frame.contains(screenPoint) && $0.frame.width > 10 }
-            .max { $0.windowLayer < $1.windowLayer }
-
-        hoveredWindowRect = hit.map { toView($0.frame) }
     }
 
-    // MARK: - Coordinate helpers
-
-    /// Flipped-view rect → screen rect.
-    private func toScreen(_ viewRect: NSRect) -> CGRect {
-        guard let w = window else { return viewRect }
-        return w.convertToScreen(NSRect(
-            x: viewRect.minX,
-            y: bounds.height - viewRect.maxY,   // unflip Y
-            width: viewRect.width,
-            height: viewRect.height
-        ))
+    private func toScreen(_ r: NSRect) -> CGRect {
+        guard let w = window else { return r }
+        return w.convertToScreen(NSRect(x: r.minX, y: bounds.height - r.maxY,
+                                        width: r.width, height: r.height))
     }
 
-    /// Screen rect → flipped-view rect.
-    private func toView(_ screenRect: CGRect) -> NSRect {
-        guard let w = window else { return screenRect }
-        let inWindow = CGRect(
-            x: screenRect.minX - w.frame.minX,
-            y: screenRect.minY - w.frame.minY,
-            width: screenRect.width,
-            height: screenRect.height
-        )
-        // Flip Y
-        return NSRect(
-            x: inWindow.minX,
-            y: bounds.height - inWindow.maxY,
-            width: inWindow.width,
-            height: inWindow.height
-        )
+    private func toViewRect(_ s: CGRect) -> NSRect {
+        guard let w = window else { return s }
+        let l = CGRect(x: s.minX - w.frame.minX, y: s.minY - w.frame.minY,
+                       width: s.width, height: s.height)
+        return NSRect(x: l.minX, y: bounds.height - l.maxY, width: l.width, height: l.height)
+    }
+
+    private func makeRect(_ a: NSPoint, _ b: NSPoint) -> NSRect {
+        NSRect(x: min(a.x,b.x), y: min(a.y,b.y), width: abs(b.x-a.x), height: abs(b.y-a.y))
     }
 }
 
-// MARK: - NSPoint helper
-
 private extension NSPoint {
-    /// Converts from flipped (top-left) to unflipped (bottom-left) within a rect.
-    func unflipped(in bounds: NSRect) -> NSPoint {
-        NSPoint(x: x, y: bounds.height - y)
-    }
+    func unflipped(in bounds: NSRect) -> NSPoint { NSPoint(x: x, y: bounds.height - y) }
+}
+
+private extension NSBezierPath {
+    @discardableResult func `let`(_ block: (NSBezierPath) -> Void) -> NSBezierPath { block(self); return self }
 }

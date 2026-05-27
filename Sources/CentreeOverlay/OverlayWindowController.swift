@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import CoreGraphics
 import ScreenCaptureKit
 import CentreeCore
@@ -6,29 +7,24 @@ import CentreeCore
 // MARK: - Result type
 
 public enum OverlayResult: Sendable {
-    case region(CGRect)      // selected rect in screen coordinates
+    case captured(image: CGImage, sourceRect: CGRect, scaleFactor: CGFloat)
     case cancelled
 }
 
 // MARK: - Controller
 
-/// Presents full-screen frozen-screenshot overlays on every connected display,
-/// waits for the user to drag-select a region (or pick a detected window),
-/// then tears everything down.
 @MainActor
 public final class OverlayWindowController {
     private var windows: [OverlayNSWindow] = []
+    private var overlayViews: [OverlayView] = []
+    private var toolbarHostingView: NSView?
     private var continuation: CheckedContinuation<OverlayResult, Never>?
+    private var viewModel = OverlayViewModel()
 
     public init() {}
 
     // MARK: - Public API
 
-    /// Shows the overlay and suspends until the user selects a region or presses Escape.
-    ///
-    /// - Parameters:
-    ///   - backgrounds: One `(frame, image)` per display. Frame is in AppKit screen coordinates.
-    ///   - scWindows: On-screen SCWindows from SCShareableContent (for grid highlight).
     public func show(
         backgrounds: [(frame: CGRect, image: CGImage)],
         scWindows: [SCWindow] = []
@@ -39,27 +35,102 @@ public final class OverlayWindowController {
         }
     }
 
-    // MARK: - Private
+    // MARK: - Present
 
     private func present(backgrounds: [(frame: CGRect, image: CGImage)], scWindows: [SCWindow]) {
+        viewModel = OverlayViewModel()
+        viewModel.onDone   = { [weak self] in self?.handleDone() }
+        viewModel.onCancel = { [weak self] in self?.finish(with: .cancelled) }
+
+        let cursorScreen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+                           ?? NSScreen.main
+
         for (frame, image) in backgrounds {
+            let scale = NSScreen.screens.first(where: { $0.frame == frame })?.backingScaleFactor ?? 2.0
             let window = OverlayNSWindow(frame: frame)
-            let view = OverlayView(backgroundImage: image)
+            let view = OverlayView(backgroundImage: image, scaleFactor: scale)
             view.scWindows = scWindows
             view.delegate = self
+            view.viewModel = viewModel
             view.frame = window.contentView!.bounds
             view.autoresizingMask = [.width, .height]
             window.contentView!.addSubview(view)
             window.makeFirstResponder(view)
             window.makeKeyAndOrderFront(nil)
             windows.append(window)
+            overlayViews.append(view)
+
+            // Place toolbar on the display that has the cursor
+            if frame == cursorScreen?.frame ?? frame {
+                addToolbar(to: window, screen: NSScreen.screens.first(where: { $0.frame == frame }))
+            }
         }
         NSCursor.crosshair.set()
     }
 
+    // MARK: - Toolbar
+
+    private func addToolbar(to window: OverlayNSWindow, screen: NSScreen?) {
+        let toolbarH: CGFloat = 44
+        let safeTop: CGFloat = screen?.safeAreaInsets.top ?? 0
+        let w = window.contentView!.bounds.width
+        let h = window.contentView!.bounds.height
+
+        let toolbarView = OverlayToolbarView(vm: viewModel)
+        let hosting = NSHostingView(rootView: toolbarView)
+        hosting.wantsLayer = true
+
+        // Start above visible area (for slide-in animation)
+        let finalY = h - safeTop - toolbarH
+        hosting.frame = NSRect(x: 0, y: h, width: w, height: toolbarH)
+        hosting.autoresizingMask = [.width, .minYMargin]
+        window.contentView!.addSubview(hosting)
+        toolbarHostingView = hosting
+
+        // Apple-style spring slide-in
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.45
+            ctx.timingFunction = CAMediaTimingFunction(controlPoints: 0.25, 0.46, 0.45, 0.94)
+            ctx.allowsImplicitAnimation = true
+            hosting.animator().frame.origin.y = finalY
+        }
+    }
+
+    // MARK: - Done
+
+    private func handleDone() {
+        for view in overlayViews {
+            if view.viewModel?.selectionRect != nil {
+                view.requestFinish()
+                return
+            }
+        }
+        // No selection — nothing to do
+    }
+
+    // MARK: - Finish
+
     private func finish(with result: OverlayResult) {
+        // Slide toolbar out
+        if let th = toolbarHostingView {
+            NSAnimationContext.runAnimationGroup({ ctx in
+                ctx.duration = 0.2
+                ctx.timingFunction = CAMediaTimingFunction(name: .easeIn)
+                let target = th.superview?.bounds.height ?? 0
+                th.animator().frame.origin.y = target
+            }, completionHandler: { [weak self] in
+                self?.tearDown(result: result)
+            })
+        } else {
+            tearDown(result: result)
+        }
+    }
+
+    private func tearDown(result: OverlayResult) {
         windows.forEach { $0.orderOut(nil) }
         windows.removeAll()
+        overlayViews.removeAll()
+        toolbarHostingView = nil
         NSCursor.arrow.set()
         continuation?.resume(returning: result)
         continuation = nil
@@ -69,12 +140,9 @@ public final class OverlayWindowController {
 // MARK: - OverlayViewDelegate
 
 extension OverlayWindowController: OverlayViewDelegate {
-    func overlayView(_ view: OverlayView, didSelectRect rect: CGRect) {
-        finish(with: .region(rect))
-    }
-
-    func overlayView(_ view: OverlayView, didSelectWindowFrame frame: CGRect) {
-        finish(with: .region(frame))
+    func overlayView(_ view: OverlayView, didFinish image: CGImage,
+                     sourceRect: CGRect, scaleFactor: CGFloat) {
+        finish(with: .captured(image: image, sourceRect: sourceRect, scaleFactor: scaleFactor))
     }
 
     func overlayViewDidCancel(_ view: OverlayView) {
@@ -86,22 +154,12 @@ extension OverlayWindowController: OverlayViewDelegate {
 
 private final class OverlayNSWindow: NSWindow {
     init(frame: CGRect) {
-        super.init(
-            contentRect: frame,
-            styleMask: .borderless,
-            backing: .buffered,
-            defer: false
-        )
-        // Place above every other window including full-screen apps.
+        super.init(contentRect: frame, styleMask: .borderless, backing: .buffered, defer: false)
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
-        backgroundColor = .clear
-        isOpaque = false
-        hasShadow = false
-        ignoresMouseEvents = false
-        acceptsMouseMovedEvents = true
+        backgroundColor = .clear; isOpaque = false; hasShadow = false
+        ignoresMouseEvents = false; acceptsMouseMovedEvents = true
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     }
-
-    override var canBecomeKey: Bool { true }
+    override var canBecomeKey: Bool  { true }
     override var canBecomeMain: Bool { true }
 }

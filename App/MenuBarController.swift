@@ -10,6 +10,10 @@ struct MenuBarMenuView: View {
 
         Divider()
 
+        Button("Clipboard History    ⌘⇧V") { ClipboardHistoryPanel.shared.toggle() }
+
+        Divider()
+
         Button("Settings…") {
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             NSApp.activate(ignoringOtherApps: true)

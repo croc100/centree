@@ -115,6 +115,8 @@ final class AnnotationCanvasView: NSView {
             inProgressAnnotation = pen
             vm.pushUndo()
             vm.annotations.append(pen)
+
+        default: break   // .region / .ellipse / .line / .blur / .pixelate / .blackout not used in standalone editor
         }
     }
 
@@ -159,6 +161,8 @@ final class AnnotationCanvasView: NSView {
 
         case .text, .step:
             break
+
+        default: break
         }
 
         needsDisplay = true
@@ -185,6 +189,8 @@ final class AnnotationCanvasView: NSView {
 
         case .text, .step:
             break
+
+        default: break
         }
 
         dragStart = nil
