@@ -11,6 +11,10 @@ struct CentreeApp: App {
     init() {
         hotkeyManager.onCaptureRegion     = { [self] in coordinator.captureWithOverlay() }
         hotkeyManager.onCaptureFullScreen = { [self] in coordinator.captureFullScreen() }
+        hotkeyManager.onClipboardHistory  = { ClipboardHistoryPanel.shared.toggle() }
+
+        // Start clipboard polling immediately so history is captured from launch
+        _ = ClipboardHistoryManager.shared
     }
 
     var body: some Scene {

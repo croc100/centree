@@ -12,11 +12,13 @@ final class HotkeyManager {
 
     var onCaptureRegion: (() -> Void)?
     var onCaptureFullScreen: (() -> Void)?
+    var onClipboardHistory: (() -> Void)?
 
     // MARK: Private
 
     private var regionHotKey: HotKey?
     private var fullscreenHotKey: HotKey?
+    private var clipboardHotKey: HotKey?
     private var observations: [Defaults.Observation] = []
 
     // MARK: Init
@@ -38,6 +40,11 @@ final class HotkeyManager {
             keyCode:   Defaults[.fullscreenHotkeyKeyCode],
             modifiers: Defaults[.fullscreenHotkeyMods]
         ) { [weak self] in self?.onCaptureFullScreen?() }
+
+        // ⌘⇧V — clipboard history (hardcoded, not user-configurable yet)
+        clipboardHotKey = makeHotKey(keyCode: 9, modifiers: 1_179_648) { // V = 9, ⌘⇧
+            [weak self] in self?.onClipboardHistory?()
+        }
     }
 
     // MARK: - Observe Defaults changes
