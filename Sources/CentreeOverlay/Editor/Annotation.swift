@@ -3,19 +3,22 @@ import AppKit
 // MARK: - Tool
 
 public enum AnnotationTool: String, CaseIterable {
-    case region    = "region"    // crosshair — drag to select capture area
-    case select    = "select"    // move / delete existing annotations
-    case rect      = "rectangle"
-    case ellipse   = "ellipse"
-    case line      = "line"
-    case arrow     = "arrow"
-    case text      = "text"
-    case highlight = "highlight"
-    case pen       = "pen"
-    case step      = "step"
-    case blur      = "blur"      // Gaussian blur (redaction)
-    case pixelate  = "pixelate"  // Mosaic / pixelate (redaction)
-    case blackout  = "blackout"  // Solid fill
+    case region        = "region"       // crosshair — drag to select capture area
+    case select        = "select"       // move / delete existing annotations
+    case rect          = "rectangle"
+    case ellipse       = "ellipse"
+    case line          = "line"
+    case arrow         = "arrow"
+    case text          = "text"
+    case highlight     = "highlight"
+    case pen           = "pen"
+    case step          = "step"
+    case blur          = "blur"         // Gaussian blur (redaction)
+    case pixelate      = "pixelate"     // Mosaic / pixelate (redaction)
+    case blackout      = "blackout"     // Solid fill
+    case speechBalloon = "speechBalloon"// Rounded-rect speech bubble with text
+    case spotlight     = "spotlight"    // Darken everything outside this region
+    case magnify       = "magnify"      // Zoom loupe showing region at larger scale
 }
 
 // MARK: - Base
@@ -290,6 +293,110 @@ final class PixelateAnnotation: Annotation {
     }
 
     override func hitTest(_ p: NSPoint) -> Bool { rect.insetBy(dx: -4, dy: -4).contains(p) }
+}
+
+// MARK: - Speech Balloon
+
+final class SpeechBalloonAnnotation: Annotation {
+    var rect: NSRect
+    var text: String
+    var fontSize: CGFloat
+
+    init(rect: NSRect, text: String = "", color: NSColor, fontSize: CGFloat) {
+        self.rect = rect; self.text = text; self.fontSize = fontSize
+        super.init(color: color, lineWidth: 2)
+    }
+
+    override func draw(in _: NSRect) {
+        guard rect.width > 8, rect.height > 8 else { return }
+
+        // Body
+        let bodyPath = NSBezierPath(roundedRect: rect, xRadius: 8, yRadius: 8)
+        NSColor.white.withAlphaComponent(0.92).setFill()
+        bodyPath.fill()
+
+        // Tail — triangle below bottom-left of body
+        let tailPath = NSBezierPath()
+        let bx = rect.minX + 18; let by = rect.maxY
+        tailPath.move(to: NSPoint(x: bx,      y: by))
+        tailPath.line(to: NSPoint(x: rect.minX - 6, y: by + 16))
+        tailPath.line(to: NSPoint(x: bx + 14, y: by))
+        tailPath.close()
+        NSColor.white.withAlphaComponent(0.92).setFill()
+        tailPath.fill()
+
+        // Stroke body + tail outline
+        color.setStroke()
+        bodyPath.lineWidth = lineWidth; bodyPath.stroke()
+        let tailStroke = NSBezierPath()
+        tailStroke.move(to: NSPoint(x: bx, y: by))
+        tailStroke.line(to: NSPoint(x: rect.minX - 6, y: by + 16))
+        tailStroke.line(to: NSPoint(x: bx + 14, y: by))
+        tailStroke.lineWidth = lineWidth; color.setStroke(); tailStroke.stroke()
+
+        // Text
+        let pad: CGFloat = 8
+        let textRect = rect.insetBy(dx: pad, dy: pad)
+        let str = text.isEmpty ? "Type…" : text
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: fontSize, weight: .regular),
+            .foregroundColor: text.isEmpty ? NSColor.placeholderTextColor : color
+        ]
+        NSAttributedString(string: str, attributes: attrs).draw(in: textRect)
+    }
+
+    override func hitTest(_ p: NSPoint) -> Bool { rect.insetBy(dx: -6, dy: -6).contains(p) }
+}
+
+// MARK: - Spotlight
+// Rendering is handled at the canvas level (unified dark overlay with holes).
+// draw() is intentionally empty.
+
+final class SpotlightAnnotation: Annotation {
+    var rect: NSRect
+
+    init(rect: NSRect, color: NSColor = .white, lineWidth: CGFloat = 2) {
+        self.rect = rect
+        super.init(color: color, lineWidth: lineWidth)
+    }
+
+    // No-op — OverlayView / renderFinalImage draw the composite overlay.
+    override func draw(in _: NSRect) {}
+    override func hitTest(_ p: NSPoint) -> Bool { rect.insetBy(dx: -6, dy: -6).contains(p) }
+}
+
+// MARK: - Magnify (Loupe)
+// Actual pixel content is drawn by OverlayView / renderFinalImage (needs base image).
+
+final class MagnifyAnnotation: Annotation {
+    var rect: NSRect
+    var scale: CGFloat   // 2 = 2× zoom
+
+    init(rect: NSRect, scale: CGFloat = 2, color: NSColor, lineWidth: CGFloat) {
+        self.rect = rect; self.scale = scale
+        super.init(color: color, lineWidth: lineWidth)
+    }
+
+    // Fallback when base image is unavailable
+    override func draw(in _: NSRect) {
+        guard rect.width > 4, rect.height > 4 else { return }
+        color.setStroke()
+        let path = NSBezierPath(ovalIn: rect)
+        path.lineWidth = lineWidth; path.stroke()
+        // Draw ×N label
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .bold),
+            .foregroundColor: color
+        ]
+        let label = "×\(Int(scale))"
+        let sz = (label as NSString).size(withAttributes: attrs)
+        label.draw(at: NSPoint(x: rect.midX - sz.width/2, y: rect.midY - sz.height/2),
+                   withAttributes: attrs)
+    }
+
+    override func hitTest(_ p: NSPoint) -> Bool {
+        NSBezierPath(ovalIn: rect.insetBy(dx: -6, dy: -6)).contains(p)
+    }
 }
 
 // MARK: - Geometry helper

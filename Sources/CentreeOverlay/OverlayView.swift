@@ -78,8 +78,15 @@ final class OverlayView: NSView {
             drawSizeLabel(win)
         }
 
-        for ann in vm.annotations { drawAnnotation(ann) }
-        if let ip = inProgressAnnotation { drawAnnotation(ip) }
+        // Collect spotlights separately — drawn as a unified overlay at end
+        let spotlights = vm.annotations.compactMap { $0 as? SpotlightAnnotation }
+        for ann in vm.annotations where !(ann is SpotlightAnnotation) { drawAnnotation(ann) }
+        if let ip = inProgressAnnotation, !(ip is SpotlightAnnotation) { drawAnnotation(ip) }
+
+        // Spotlight overlay (dark with holes)
+        var allSpotlights = spotlights
+        if let sp = inProgressAnnotation as? SpotlightAnnotation { allSpotlights.append(sp) }
+        if !allSpotlights.isEmpty { drawSpotlightOverlay(allSpotlights) }
 
         if vm.activeTool == .region, dragStart == nil {
             ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.6).cgColor)
@@ -95,6 +102,7 @@ final class OverlayView: NSView {
     private func drawAnnotation(_ ann: Annotation) {
         if let blur = ann as? BlurAnnotation      { drawBlur(blur);     return }
         if let pix  = ann as? PixelateAnnotation  { drawPixelate(pix);  return }
+        if let mag  = ann as? MagnifyAnnotation   { drawMagnify(mag);   return }
         ann.draw(in: bounds)
     }
 
@@ -128,6 +136,41 @@ final class OverlayView: NSView {
         if let cg = ciCtx.createCGImage(out, from: CGRect(origin: .zero, size: sz)) {
             NSImage(cgImage: cg, size: ann.rect.size)
                 .draw(in: ann.rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+        }
+    }
+
+    private func drawMagnify(_ ann: MagnifyAnnotation) {
+        guard ann.rect.width > 4, ann.rect.height > 4 else { return }
+        let srcW = ann.rect.width  / ann.scale
+        let srcH = ann.rect.height / ann.scale
+        let srcRect = NSRect(x: ann.rect.midX - srcW/2, y: ann.rect.midY - srcH/2, width: srcW, height: srcH)
+        let pr = pixelRect(srcRect)
+        guard let cropped = baseCGImage.cropping(to: pr),
+              let ctx = NSGraphicsContext.current?.cgContext else {
+            ann.draw(in: bounds); return
+        }
+        ctx.saveGState()
+        NSBezierPath(ovalIn: ann.rect).addClip()
+        NSImage(cgImage: cropped, size: ann.rect.size)
+            .draw(in: ann.rect, from: .zero, operation: .sourceOver, fraction: 1.0)
+        ctx.restoreGState()
+        // Border
+        ann.color.setStroke()
+        let border = NSBezierPath(ovalIn: ann.rect)
+        border.lineWidth = ann.lineWidth; border.stroke()
+    }
+
+    private func drawSpotlightOverlay(_ spotlights: [SpotlightAnnotation]) {
+        let fullPath = NSBezierPath(rect: bounds)
+        for sp in spotlights { fullPath.append(NSBezierPath(ovalIn: sp.rect)) }
+        fullPath.windingRule = .evenOdd
+        NSColor.black.withAlphaComponent(0.65).setFill()
+        fullPath.fill()
+        // Stroke border of each spotlight circle
+        for sp in spotlights {
+            sp.color.setStroke()
+            let p = NSBezierPath(ovalIn: sp.rect)
+            p.lineWidth = max(sp.lineWidth, 2); p.stroke()
         }
     }
 
@@ -200,6 +243,16 @@ final class OverlayView: NSView {
                                                       pixelSize: vm.pixelateSize)
         case .blackout:
             inProgressAnnotation = BlackoutAnnotation(rect: .init(origin: pt, size: .zero))
+        case .speechBalloon:
+            inProgressAnnotation = SpeechBalloonAnnotation(
+                rect: .init(origin: pt, size: .zero), color: vm.strokeColor, fontSize: vm.fontSize)
+        case .spotlight:
+            inProgressAnnotation = SpotlightAnnotation(
+                rect: .init(origin: pt, size: .zero), color: vm.strokeColor, lineWidth: vm.lineWidth)
+        case .magnify:
+            inProgressAnnotation = MagnifyAnnotation(
+                rect: .init(origin: pt, size: .zero),
+                scale: vm.magnifyScale, color: vm.strokeColor, lineWidth: vm.lineWidth)
         }
         needsDisplay = true
     }
@@ -233,6 +286,15 @@ final class OverlayView: NSView {
             if let s = dragStart { inProgressAnnotation = PixelateAnnotation(rect: makeRect(s, cur), pixelSize: vm.pixelateSize) }
         case .blackout:
             if let s = dragStart { inProgressAnnotation = BlackoutAnnotation(rect: makeRect(s, cur)) }
+        case .speechBalloon:
+            if let s = dragStart { inProgressAnnotation = SpeechBalloonAnnotation(
+                rect: makeRect(s, cur), color: vm.strokeColor, fontSize: vm.fontSize) }
+        case .spotlight:
+            if let s = dragStart { inProgressAnnotation = SpotlightAnnotation(
+                rect: makeRect(s, cur), color: vm.strokeColor, lineWidth: vm.lineWidth) }
+        case .magnify:
+            if let s = dragStart { inProgressAnnotation = MagnifyAnnotation(
+                rect: makeRect(s, cur), scale: vm.magnifyScale, color: vm.strokeColor, lineWidth: vm.lineWidth) }
         case .text, .step: break
         }
         needsDisplay = true
@@ -252,8 +314,15 @@ final class OverlayView: NSView {
             moveOrigin = nil
         case .pen:
             break
-        case .rect, .ellipse, .line, .arrow, .highlight, .blur, .pixelate, .blackout:
+        case .rect, .ellipse, .line, .arrow, .highlight, .blur, .pixelate, .blackout, .spotlight, .magnify:
             if let ann = inProgressAnnotation { vm.addAnnotation(ann) }
+            inProgressAnnotation = nil
+        case .speechBalloon:
+            if let ann = inProgressAnnotation as? SpeechBalloonAnnotation,
+               ann.rect.width > 20, ann.rect.height > 20 {
+                vm.addAnnotation(ann)
+                beginBalloonTextInput(balloon: ann, vm: vm)
+            }
             inProgressAnnotation = nil
         case .text, .step:
             break
@@ -304,6 +373,32 @@ final class OverlayView: NSView {
         }
     }
 
+    private func beginBalloonTextInput(balloon: SpeechBalloonAnnotation, vm: OverlayViewModel) {
+        guard editingTextField == nil else { return }
+        let pad: CGFloat = 10
+        let fieldRect = balloon.rect.insetBy(dx: pad, dy: pad)
+        let field = NSTextField(frame: fieldRect)
+        field.isBordered = false; field.drawsBackground = false
+        field.textColor = balloon.color
+        field.font = NSFont.systemFont(ofSize: balloon.fontSize, weight: .regular)
+        field.placeholderString = "Type…"; field.focusRingType = .none
+        addSubview(field); editingTextField = field; window?.makeFirstResponder(field)
+
+        NotificationCenter.default.addObserver(
+            forName: NSControl.textDidEndEditingNotification, object: field, queue: .main
+        ) { [weak self, weak field, weak balloon] _ in
+            guard let self, let field, let balloon else { return }
+            let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty {
+                vm.undo()   // remove the annotation we just added
+            } else {
+                balloon.text = text
+            }
+            field.removeFromSuperview(); self.editingTextField = nil
+            self.needsDisplay = true; NotificationCenter.default.removeObserver(self)
+        }
+    }
+
     private func updateHoveredWindow() {
         guard let w = window else { hoveredWindowRect = nil; return }
         let sp = w.convertToScreen(NSRect(origin: mousePos.unflipped(in: bounds), size: .zero)).origin
@@ -322,9 +417,12 @@ final class OverlayView: NSView {
         case let h as HighlightAnnotation: h.rect   = h.rect.offsetBy(dx: dx, dy: dy)
         case let p as PenAnnotation:       p.points = p.points.map { .init(x: $0.x+dx, y: $0.y+dy) }
         case let s as StepAnnotation:      s.center = .init(x: s.center.x+dx, y: s.center.y+dy)
-        case let b as BlurAnnotation:      b.rect   = b.rect.offsetBy(dx: dx, dy: dy)
-        case let x as PixelateAnnotation:  x.rect   = x.rect.offsetBy(dx: dx, dy: dy)
-        case let k as BlackoutAnnotation:  k.rect   = k.rect.offsetBy(dx: dx, dy: dy)
+        case let b as BlurAnnotation:           b.rect = b.rect.offsetBy(dx: dx, dy: dy)
+        case let x as PixelateAnnotation:       x.rect = x.rect.offsetBy(dx: dx, dy: dy)
+        case let k as BlackoutAnnotation:       k.rect = k.rect.offsetBy(dx: dx, dy: dy)
+        case let sb as SpeechBalloonAnnotation: sb.rect = sb.rect.offsetBy(dx: dx, dy: dy)
+        case let sp as SpotlightAnnotation:     sp.rect = sp.rect.offsetBy(dx: dx, dy: dy)
+        case let m as MagnifyAnnotation:        m.rect  = m.rect.offsetBy(dx: dx, dy: dy)
         default: break
         }
     }

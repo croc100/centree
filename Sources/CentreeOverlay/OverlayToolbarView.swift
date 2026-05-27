@@ -20,14 +20,17 @@ struct OverlayToolbarView: View {
         (.pen,       "pencil",               "Freehand"),
     ]
     private let textGroup: [(AnnotationTool, String, String)] = [
-        (.text, "textformat",                "Text"),
-        (.step, "number.circle",             "Step Number"),
+        (.text,          "textformat",              "Text"),
+        (.step,          "number.circle",           "Step Number"),
+        (.speechBalloon, "bubble.left",             "Speech Balloon"),
     ]
     private let effectGroup: [(AnnotationTool, String, String)] = [
-        (.highlight, "highlighter",          "Highlight"),
-        (.blur,      "aqi.medium",           "Blur"),
-        (.pixelate,  "squareshape.squareshape.dashed", "Pixelate"),
-        (.blackout,  "rectangle.fill",       "Blackout"),
+        (.highlight, "highlighter",                       "Highlight"),
+        (.blur,      "aqi.medium",                        "Blur"),
+        (.pixelate,  "squareshape.squareshape.dashed",    "Pixelate"),
+        (.blackout,  "rectangle.fill",                    "Blackout"),
+        (.spotlight, "circle.dashed.inset.filled",        "Spotlight"),
+        (.magnify,   "magnifyingglass",                   "Magnify"),
     ]
 
     var body: some View {
@@ -117,8 +120,8 @@ struct OverlayToolbarView: View {
     @ViewBuilder
     private func toolOptions() -> some View {
         HStack(spacing: 6) {
-            // Color well — hidden for region/select/blur/pixelate/blackout
-            if ![.region, .select, .blur, .pixelate, .blackout].contains(vm.activeTool) {
+            // Color well — hidden for region/select/blur/pixelate/blackout/spotlight
+            if ![.region, .select, .blur, .pixelate, .blackout, .spotlight].contains(vm.activeTool) {
                 ColorWellRepresentable(color: $vm.strokeColor)
                     .frame(width: 28, height: 22)
             }
@@ -155,13 +158,24 @@ struct OverlayToolbarView: View {
             // Pixelate size
             if vm.activeTool == .pixelate {
                 HStack(spacing: 4) {
-                    Text("Size:")
-                        .font(.caption)
+                    Text("Size:").font(.caption)
                     Stepper(value: $vm.pixelateSize, in: 4...40, step: 2) {
                         Text("\(Int(vm.pixelateSize))")
                             .font(.caption).monospacedDigit().frame(width: 24)
                     }
                     .frame(width: 72)
+                }
+            }
+
+            // Magnify scale
+            if vm.activeTool == .magnify {
+                HStack(spacing: 4) {
+                    Text("Zoom:").font(.caption)
+                    Stepper(value: $vm.magnifyScale, in: 1.5...8, step: 0.5) {
+                        Text("×\(String(format: "%.1f", vm.magnifyScale))")
+                            .font(.caption).monospacedDigit().frame(width: 36)
+                    }
+                    .frame(width: 88)
                 }
             }
         }

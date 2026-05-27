@@ -15,6 +15,7 @@ final class OverlayViewModel: ObservableObject {
     @Published var fontSize: CGFloat = 18
     @Published var blurRadius: CGFloat = 20
     @Published var pixelateSize: CGFloat = 12
+    @Published var magnifyScale: CGFloat = 2
 
     // MARK: Annotations
 
@@ -93,8 +94,7 @@ final class OverlayViewModel: ObservableObject {
             ctx.draw(cropped, in: CGRect(x: 0, y: 0, width: w, height: h))
         }
 
-        // 2. Effect annotations (blur / pixelate / blackout) — operate in pixel space
-        //    These are drawn BEFORE the transform below because they rely on the base pixels.
+        // 2. Effect annotations (blur / pixelate / blackout / magnify) — pixel space
         for ann in annotations {
             let relPixelRect = pixelRelative(ann: ann, sel: sel, scale: scaleFactor)
             guard !relPixelRect.isEmpty else { continue }
@@ -116,6 +116,26 @@ final class OverlayViewModel: ObservableObject {
             } else if ann is BlackoutAnnotation {
                 ctx.setFillColor(CGColor.black)
                 ctx.fill(relPixelRect)
+
+            } else if let mag = ann as? MagnifyAnnotation {
+                // Source = inner region (center / scale) from baseCGImage
+                let srcW = relPixelRect.width  / mag.scale
+                let srcH = relPixelRect.height / mag.scale
+                let absSrc = CGRect(
+                    x: relPixelRect.midX + pixelOrigin.x - srcW / 2,
+                    y: relPixelRect.midY + pixelOrigin.y - srcH / 2,
+                    width: srcW, height: srcH)
+                if let cropped = baseCGImage.cropping(to: absSrc) {
+                    ctx.saveGState()
+                    ctx.addEllipse(in: relPixelRect)
+                    ctx.clip()
+                    ctx.draw(cropped, in: relPixelRect)
+                    ctx.restoreGState()
+                    // Border
+                    ctx.setStrokeColor(mag.color.cgColor)
+                    ctx.setLineWidth(mag.lineWidth * scaleFactor)
+                    ctx.strokeEllipse(in: relPixelRect)
+                }
             }
         }
 
@@ -138,6 +158,24 @@ final class OverlayViewModel: ObservableObject {
         NSGraphicsContext.restoreGraphicsState()
         ctx.restoreGState()
 
+        // 4. Spotlight overlay — dark fill with holes (even-odd rule)
+        let spotlights = annotations.compactMap { $0 as? SpotlightAnnotation }
+        if !spotlights.isEmpty {
+            let fullPath = CGMutablePath()
+            fullPath.addRect(CGRect(x: 0, y: 0, width: w, height: h))
+            for sp in spotlights {
+                let relRect = CGRect(
+                    x: (sp.rect.minX - sel.minX) * scaleFactor,
+                    y: (sp.rect.minY - sel.minY) * scaleFactor,
+                    width:  sp.rect.width  * scaleFactor,
+                    height: sp.rect.height * scaleFactor)
+                fullPath.addEllipse(in: relRect)
+            }
+            ctx.addPath(fullPath)
+            ctx.setFillColor(NSColor.black.withAlphaComponent(0.62).cgColor)
+            ctx.fillPath(using: .evenOdd)
+        }
+
         return ctx.makeImage()
     }
 
@@ -146,9 +184,10 @@ final class OverlayViewModel: ObservableObject {
     /// Rect of an annotation relative to selection top-left, in pixels.
     private func pixelRelative(ann: Annotation, sel: NSRect, scale: CGFloat) -> CGRect {
         var r: NSRect?
-        if let a = ann as? BlurAnnotation      { r = a.rect }
+        if let a = ann as? BlurAnnotation          { r = a.rect }
         else if let a = ann as? PixelateAnnotation { r = a.rect }
         else if let a = ann as? BlackoutAnnotation { r = a.rect }
+        else if let a = ann as? MagnifyAnnotation  { r = a.rect }
         guard let viewRect = r else { return .zero }
 
         let clipped = viewRect.intersection(sel)
