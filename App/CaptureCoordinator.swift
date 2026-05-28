@@ -191,6 +191,18 @@ final class CaptureCoordinator: ObservableObject {
             }
             playShutterSound()
 
+            // Record to capture history
+            let thumbData = CaptureHistoryManager.makeThumbnail(from: image)
+            let histItem = HistoryItem(
+                filePath: ctx.outputURLs.first?.path,
+                sourceRect: sourceRect,
+                scaleFactor: Double(scaleFactor),
+                widthPx: image.width,
+                heightPx: image.height,
+                thumbnailData: thumbData
+            )
+            CaptureHistoryManager.shared.add(histItem)
+
             // Pin to screen (needs raw image, done outside pipeline)
             if optSet.contains(.pinToScreen) {
                 PinToScreenPanel.pin(image: image)

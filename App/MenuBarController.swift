@@ -36,6 +36,7 @@ struct MenuBarMenuView: View {
 
         Divider()
 
+        Button("Capture History…") { CaptureHistoryPanel.shared.toggle() }
         Button("Clipboard History    ⌘⇧V") { ClipboardHistoryPanel.shared.toggle() }
 
         Divider()
