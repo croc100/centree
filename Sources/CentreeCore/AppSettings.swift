@@ -47,15 +47,16 @@ public extension Defaults.Keys {
     /// NSSound name to play. Empty string = system "Grab" sound.
     static let captureSoundName = Key<String>("captureSoundName", default: "")
 
-    // MARK: Hotkeys — Region capture (⌘⇧4 default = keyCode 21, mods 1179648)
+    // MARK: Hotkeys — Region capture (⌃⌘4 default; Carbon ctrlKey|cmdKey = 4352, keyCode 21 = '4')
+    // ⌘⇧3/⌘⇧4 are reserved by macOS screenshot system; use ⌃⌘3/⌃⌘4 instead.
 
     static let regionHotkeyKeyCode  = Key<UInt32>("regionHotkeyKeyCode",  default: 21)
-    static let regionHotkeyMods     = Key<UInt32>("regionHotkeyMods",     default: 1_179_648)
+    static let regionHotkeyMods     = Key<UInt32>("regionHotkeyMods",     default: 4352)
 
-    // MARK: Hotkeys — Full-screen capture (⌘⇧3 default = keyCode 20, mods 1179648)
+    // MARK: Hotkeys — Full-screen capture (⌃⌘3 default; Carbon 4352, keyCode 20 = '3')
 
     static let fullscreenHotkeyKeyCode = Key<UInt32>("fullscreenHotkeyKeyCode", default: 20)
-    static let fullscreenHotkeyMods    = Key<UInt32>("fullscreenHotkeyMods",    default: 1_179_648)
+    static let fullscreenHotkeyMods    = Key<UInt32>("fullscreenHotkeyMods",    default: 4352)
 
     // MARK: Hotkeys — Last Region / Window Picker (no default = 0/0 = disabled)
 

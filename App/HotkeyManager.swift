@@ -44,8 +44,8 @@ final class HotkeyManager {
             modifiers: Defaults[.fullscreenHotkeyMods]
         ) { [weak self] in self?.onCaptureFullScreen?() }
 
-        // ⌘⇧V — clipboard history (hardcoded)
-        clipboardHotKey = makeHotKey(keyCode: 9, modifiers: 1_179_648) {
+        // ⌘⇧V — clipboard history (hardcoded); 768 = Carbon cmdKey|shiftKey
+        clipboardHotKey = makeHotKey(keyCode: 9, modifiers: 768) {
             [weak self] in self?.onClipboardHistory?()
         }
 

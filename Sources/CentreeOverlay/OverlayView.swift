@@ -21,7 +21,6 @@ final class OverlayView: NSView {
     var scWindows: [SCWindow] = []
 
     private var baseCGImage: CGImage
-    private var baseNSImage: NSImage
     private var scaleFactor: CGFloat = 2.0
 
     private var dragStart: NSPoint?
@@ -37,7 +36,6 @@ final class OverlayView: NSView {
 
     init(backgroundImage: CGImage, scaleFactor: CGFloat) {
         self.baseCGImage = backgroundImage
-        self.baseNSImage = NSImage(cgImage: backgroundImage, size: .zero)
         self.scaleFactor = scaleFactor
         super.init(frame: .zero)
     }
@@ -66,22 +64,18 @@ final class OverlayView: NSView {
         guard let ctx = NSGraphicsContext.current?.cgContext,
               let vm = viewModel else { return }
 
-        baseNSImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
+        drawBackground(in: ctx)
         ctx.setFillColor(NSColor.black.withAlphaComponent(0.45).cgColor)
         ctx.fill(bounds)
 
         let displaySel = vm.selectionRect ?? liveSelectionRect
         if let sel = displaySel, sel.width > 2, sel.height > 2 {
-            ctx.saveGState(); ctx.clip(to: sel)
-            baseNSImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
-            ctx.restoreGState()
+            drawBackground(in: ctx, clippedTo: sel)
             ctx.setStrokeColor(NSColor.white.cgColor); ctx.setLineWidth(1.5)
             ctx.stroke(sel.insetBy(dx: 0.75, dy: 0.75))
             drawHandles(sel, ctx: ctx); drawSizeLabel(sel)
         } else if let win = hoveredWindowRect, vm.activeTool == .region {
-            ctx.saveGState(); ctx.clip(to: win)
-            baseNSImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1.0)
-            ctx.restoreGState()
+            drawBackground(in: ctx, clippedTo: win)
             let p = NSBezierPath(rect: win.insetBy(dx: 1, dy: 1))
             p.lineWidth = 2; NSColor.systemBlue.setStroke(); p.stroke()
             drawSizeLabel(win)
@@ -124,6 +118,19 @@ final class OverlayView: NSView {
             ctx.addLine(to: .init(x: mousePos.x, y: bounds.height))
             ctx.strokePath()
         }
+    }
+
+    // CIContext-created CGImage has row 0 = bottom (CG convention). In a flipped
+    // NSView the CTM maps y=0→visual-top, so a naive ctx.draw puts bottom-of-screen
+    // at the visual top. Cancel the flip before drawing so CG-native orientation
+    // renders correctly: row 0 (bottom of screen) → visual bottom.
+    private func drawBackground(in ctx: CGContext, clippedTo clip: CGRect? = nil) {
+        ctx.saveGState()
+        if let clip { ctx.clip(to: clip) }
+        ctx.translateBy(x: 0, y: bounds.height)
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(baseCGImage, in: CGRect(origin: .zero, size: bounds.size))
+        ctx.restoreGState()
     }
 
     private func drawAnnotation(_ ann: Annotation) {
