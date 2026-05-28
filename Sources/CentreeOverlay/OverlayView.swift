@@ -33,7 +33,7 @@ final class OverlayView: NSView {
     private var moveOrigin: NSPoint?
     private var editingTextField: NSTextField?
     private var eraserDidPushUndo = false
-    private let ciCtx = CIContext(options: [.useSoftwareRenderer: false])
+    private var editingObserver: NSObjectProtocol?
 
     init(backgroundImage: CGImage, scaleFactor: CGFloat) {
         self.baseCGImage = backgroundImage
@@ -145,7 +145,7 @@ final class OverlayView: NSView {
         guard let out = f.outputImage else { return }
         let sz = CGSize(width: pr.width, height: pr.height)
         let shifted = out.transformed(by: .init(translationX: -out.extent.minX, y: -out.extent.minY))
-        if let cg = ciCtx.createCGImage(shifted, from: CGRect(origin: .zero, size: sz)) {
+        if let cg = OverlayViewModel.ciContext.createCGImage(shifted, from: CGRect(origin: .zero, size: sz)) {
             NSImage(cgImage: cg, size: ann.rect.size)
                 .draw(in: ann.rect, from: .zero, operation: .sourceOver, fraction: 1.0)
         }
@@ -161,7 +161,7 @@ final class OverlayView: NSView {
         f.setValue(max(ann.pixelSize * scaleFactor / 2, 2.0), forKey: kCIInputScaleKey)
         guard let out = f.outputImage else { return }
         let sz = CGSize(width: pr.width, height: pr.height)
-        if let cg = ciCtx.createCGImage(out, from: CGRect(origin: .zero, size: sz)) {
+        if let cg = OverlayViewModel.ciContext.createCGImage(out, from: CGRect(origin: .zero, size: sz)) {
             NSImage(cgImage: cg, size: ann.rect.size)
                 .draw(in: ann.rect, from: .zero, operation: .sourceOver, fraction: 1.0)
         }
@@ -224,8 +224,10 @@ final class OverlayView: NSView {
         let sz = str.size(); let pad: CGFloat = 5
         let lx = max(2, min(rect.midX - sz.width/2 - pad, bounds.width - sz.width - pad*2 - 2))
         let ly = rect.maxY + 6 > bounds.height - 24 ? rect.minY - sz.height - 10 : rect.maxY + 6
-        NSBezierPath(roundedRect: NSRect(x: lx, y: ly, width: sz.width+pad*2, height: sz.height+pad),
-                     xRadius: 4, yRadius: 4).let { NSColor(white:0,alpha:0.7).setFill(); $0.fill() }
+        let bg = NSBezierPath(roundedRect: NSRect(x: lx, y: ly, width: sz.width+pad*2, height: sz.height+pad),
+                              xRadius: 4, yRadius: 4)
+        NSColor(white: 0, alpha: 0.7).setFill()
+        bg.fill()
         str.draw(at: NSPoint(x: lx + pad, y: ly + pad/2))
     }
 
@@ -409,8 +411,9 @@ final class OverlayView: NSView {
         field.font = NSFont.systemFont(ofSize: vm.fontSize, weight: .semibold)
         field.placeholderString = "Type…"; field.focusRingType = .none
         addSubview(field); editingTextField = field; window?.makeFirstResponder(field)
-        NotificationCenter.default.addObserver(forName: NSControl.textDidEndEditingNotification,
-                                               object: field, queue: .main) { [weak self, weak field] _ in
+        editingObserver = NotificationCenter.default.addObserver(
+            forName: NSControl.textDidEndEditingNotification, object: field, queue: .main
+        ) { [weak self, weak field] _ in
             guard let self, let field else { return }
             let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             field.removeFromSuperview(); self.editingTextField = nil
@@ -418,7 +421,9 @@ final class OverlayView: NSView {
                 vm.addAnnotation(TextAnnotation(origin: pt, text: text,
                                                 color: vm.strokeColor, fontSize: vm.fontSize))
             }
-            self.needsDisplay = true; NotificationCenter.default.removeObserver(self)
+            self.needsDisplay = true
+            if let obs = self.editingObserver { NotificationCenter.default.removeObserver(obs) }
+            self.editingObserver = nil
         }
     }
 
@@ -432,19 +437,20 @@ final class OverlayView: NSView {
         field.font = NSFont.systemFont(ofSize: balloon.fontSize, weight: .regular)
         field.placeholderString = "Type…"; field.focusRingType = .none
         addSubview(field); editingTextField = field; window?.makeFirstResponder(field)
-
-        NotificationCenter.default.addObserver(
+        editingObserver = NotificationCenter.default.addObserver(
             forName: NSControl.textDidEndEditingNotification, object: field, queue: .main
         ) { [weak self, weak field, weak balloon] _ in
             guard let self, let field, let balloon else { return }
             let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             if text.isEmpty {
-                vm.undo()   // remove the annotation we just added
+                vm.undo()
             } else {
                 balloon.text = text
             }
             field.removeFromSuperview(); self.editingTextField = nil
-            self.needsDisplay = true; NotificationCenter.default.removeObserver(self)
+            self.needsDisplay = true
+            if let obs = self.editingObserver { NotificationCenter.default.removeObserver(obs) }
+            self.editingObserver = nil
         }
     }
 
@@ -490,7 +496,7 @@ final class OverlayView: NSView {
         field.focusRingType = .none
         field.alignment = .center
         addSubview(field); editingTextField = field; window?.makeFirstResponder(field)
-        NotificationCenter.default.addObserver(
+        editingObserver = NotificationCenter.default.addObserver(
             forName: NSControl.textDidEndEditingNotification, object: field, queue: .main
         ) { [weak self, weak field] _ in
             guard let self, let field else { return }
@@ -500,7 +506,8 @@ final class OverlayView: NSView {
                 vm.addAnnotation(EmojiAnnotation(origin: pt, emoji: text, fontSize: vm.emojiSize))
             }
             self.needsDisplay = true
-            NotificationCenter.default.removeObserver(self, name: NSControl.textDidEndEditingNotification, object: field)
+            if let obs = self.editingObserver { NotificationCenter.default.removeObserver(obs) }
+            self.editingObserver = nil
         }
     }
 
@@ -549,6 +556,3 @@ private extension NSPoint {
     func unflipped(in bounds: NSRect) -> NSPoint { NSPoint(x: x, y: bounds.height - y) }
 }
 
-private extension NSBezierPath {
-    @discardableResult func `let`(_ block: (NSBezierPath) -> Void) -> NSBezierPath { block(self); return self }
-}
