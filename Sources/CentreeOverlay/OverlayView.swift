@@ -29,6 +29,8 @@ final class OverlayView: NSView {
     private var hoveredWindowRect: NSRect?
     private var mousePos: NSPoint = .zero
     private var selectedAnnotation: Annotation?
+    /// Multi-select set — populated by Shift+click in the select tool.
+    private var selectedAnnotations: Set<ObjectIdentifier> = []
     private var moveOrigin: NSPoint?
     private var activeHandle: Int?   // 0-7 = rect handle index, 10-11 = line endpoint index
 
@@ -137,8 +139,16 @@ final class OverlayView: NSView {
         }
 
         // Selection handles for the currently selected annotation (select tool)
-        if vm.activeTool == .select, let sel = selectedAnnotation {
-            drawSelectionHandles(for: sel, in: ctx)
+        if vm.activeTool == .select {
+            // Draw multi-select highlight for all selected annotations
+            if !selectedAnnotations.isEmpty {
+                for ann in vm.annotations where selectedAnnotations.contains(ObjectIdentifier(ann)) {
+                    drawMultiSelectHighlight(for: ann, in: ctx)
+                }
+            }
+            if let sel = selectedAnnotation {
+                drawSelectionHandles(for: sel, in: ctx)
+            }
         }
     }
 
@@ -349,6 +359,17 @@ final class OverlayView: NSView {
         case let a as MagnifyAnnotation:      return a.rect
         default: return nil
         }
+    }
+
+    private func drawMultiSelectHighlight(for ann: Annotation, in ctx: CGContext) {
+        ctx.saveGState()
+        ctx.setStrokeColor(NSColor.systemBlue.withAlphaComponent(0.6).cgColor)
+        ctx.setLineWidth(1.5)
+        ctx.setLineDash(phase: 0, lengths: [5, 3])
+        if let br = annotationBoundingRect(ann) {
+            ctx.stroke(br.insetBy(dx: -2, dy: -2))
+        }
+        ctx.restoreGState()
     }
 
     private func drawSelectionHandles(for ann: Annotation, in ctx: CGContext) {
@@ -610,7 +631,18 @@ final class OverlayView: NSView {
                     }
                 }
             }
-            selectedAnnotation = vm.annotations.last(where: { $0.hitTest(pt) })
+            let hit = vm.annotations.last(where: { $0.hitTest(pt) })
+            if event.modifierFlags.contains(.shift), let h = hit {
+                // Shift+click: toggle membership in multi-selection
+                let id = ObjectIdentifier(h)
+                if selectedAnnotations.contains(id) { selectedAnnotations.remove(id) }
+                else { selectedAnnotations.insert(id) }
+                // Keep selectedAnnotation on the last-clicked for handle display
+                selectedAnnotation = h
+            } else {
+                selectedAnnotations.removeAll()
+                selectedAnnotation = hit
+            }
             moveOrigin = pt
         case .freehandArrow:
             let fa = FreehandArrowAnnotation(color: vm.strokeColor, lineWidth: vm.lineWidth)
@@ -622,7 +654,10 @@ final class OverlayView: NSView {
         case .textBackground:
             beginTextBackgroundInput(at: pt, vm: vm)
         case .step:
-            vm.addAnnotation(StepAnnotation(center: pt, number: vm.nextStepNumber, color: vm.strokeColor))
+            // Place the step and keep a reference so drag can attach a leader line
+            let step = StepAnnotation(center: pt, number: vm.nextStepNumber, color: vm.strokeColor)
+            vm.addAnnotation(step)
+            inProgressAnnotation = step   // reuse inProgressAnnotation to track during drag
         case .rect:
             inProgressAnnotation = RectAnnotation(rect: .init(origin: pt, size: .zero),
                                                   color: vm.strokeColor, lineWidth: vm.lineWidth)
@@ -701,6 +736,14 @@ final class OverlayView: NSView {
                 else       { applyLineResize(ann: ann, endpointIdx: h - 10, dx: dx, dy: dy) }
             } else {
                 moveAnnotation(ann, dx: dx, dy: dy)
+                // Also move all other annotations in the multi-selection
+                if !selectedAnnotations.isEmpty {
+                    for other in vm.annotations
+                        where ObjectIdentifier(other) != ObjectIdentifier(ann) &&
+                              selectedAnnotations.contains(ObjectIdentifier(other)) {
+                        moveAnnotation(other, dx: dx, dy: dy)
+                    }
+                }
             }
         case .rect:
             if let s = dragStart {
@@ -751,7 +794,10 @@ final class OverlayView: NSView {
             }
         case .eraser:
             eraseAnnotation(at: cur, vm: vm)
-        case .text, .textOutline, .textBackground, .step, .emoji, .cursor, .image: break
+        case .step:
+            // Drag from the just-placed step to set a leader line tip
+            (inProgressAnnotation as? StepAnnotation)?.leaderEnd = cur
+        case .text, .textOutline, .textBackground, .emoji, .cursor, .image: break
         }
         needsDisplay = true
     }
@@ -793,7 +839,9 @@ final class OverlayView: NSView {
             inProgressAnnotation = nil
         case .eraser:
             eraserDidPushUndo = false
-        case .text, .textOutline, .textBackground, .step, .emoji, .cursor, .image, .crop:
+        case .step:
+            inProgressAnnotation = nil   // leader drag finished
+        case .text, .textOutline, .textBackground, .emoji, .cursor, .image, .crop:
             break
         }
         dragStart = nil; needsDisplay = true
@@ -814,8 +862,16 @@ final class OverlayView: NSView {
             return
         }
         if event.keyCode == 36 || event.keyCode == 76 { requestFinish(); return }  // Return
-        if (event.keyCode == 51 || event.keyCode == 117), let vm = viewModel, let sel = selectedAnnotation {
-            vm.pushUndo(); vm.annotations.removeAll { $0 === sel }; selectedAnnotation = nil
+        if (event.keyCode == 51 || event.keyCode == 117), let vm = viewModel {
+            vm.pushUndo()
+            if !selectedAnnotations.isEmpty {
+                vm.annotations.removeAll { selectedAnnotations.contains(ObjectIdentifier($0)) }
+                selectedAnnotations.removeAll()
+                selectedAnnotation = nil
+            } else if let sel = selectedAnnotation {
+                vm.annotations.removeAll { $0 === sel }
+                selectedAnnotation = nil
+            }
             needsDisplay = true; return
         }
         super.keyDown(with: event)
@@ -980,11 +1036,32 @@ final class OverlayView: NSView {
         }
     }
 
-    private func eraseAnnotation(at pt: NSPoint, vm: OverlayViewModel) {
-        if let hit = vm.annotations.last(where: { $0.hitTest(pt) }) {
-            vm.annotations.removeAll { $0 === hit }
-            needsDisplay = true
+    /// Smart Eraser: radius-based brush that trims pen/freehandArrow strokes point-by-point;
+    /// fully removes other annotation types if the brush center hits them.
+    private func eraseAnnotation(at pt: NSPoint, vm: OverlayViewModel, radius: CGFloat = 16) {
+        var didChange = false
+
+        vm.annotations = vm.annotations.compactMap { ann -> Annotation? in
+            // Pen stroke — remove points inside the eraser circle
+            if let pen = ann as? PenAnnotation {
+                let before = pen.points.count
+                pen.points = pen.points.filter { hypot($0.x - pt.x, $0.y - pt.y) > radius }
+                if pen.points.count != before { didChange = true }
+                return pen.points.count > 1 ? pen : nil
+            }
+            // Freehand arrow — same treatment
+            if let fa = ann as? FreehandArrowAnnotation {
+                let before = fa.points.count
+                fa.points = fa.points.filter { hypot($0.x - pt.x, $0.y - pt.y) > radius }
+                if fa.points.count != before { didChange = true }
+                return fa.points.count > 1 ? fa : nil
+            }
+            // All other annotations — whole-annotation erase if hit
+            if ann.hitTest(pt) { didChange = true; return nil }
+            return ann
         }
+
+        if didChange { needsDisplay = true }
     }
 
     private func openImagePicker(at pt: NSPoint, vm: OverlayViewModel) {

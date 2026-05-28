@@ -389,6 +389,8 @@ final class PenAnnotation: Annotation {
 final class StepAnnotation: Annotation {
     var center: NSPoint
     var number: Int
+    /// Optional leader line endpoint (set by drag after click-to-place).
+    var leaderEnd: NSPoint?
     private let r: CGFloat = 12
 
     init(center: NSPoint, number: Int, color: NSColor) {
@@ -397,6 +399,22 @@ final class StepAnnotation: Annotation {
     }
 
     override func draw(in _: NSRect) {
+        // Leader line first so circle sits on top
+        if let tip = leaderEnd {
+            // Find the point on the circle rim closest to the tip
+            let angle = atan2(tip.y - center.y, tip.x - center.x)
+            let rim   = NSPoint(x: center.x + r * cos(angle), y: center.y + r * sin(angle))
+            color.setStroke()
+            let leader = NSBezierPath()
+            leader.lineWidth = lineWidth
+            leader.lineCapStyle = .round
+            leader.move(to: rim); leader.line(to: tip)
+            leader.stroke()
+            // Small filled dot at tip
+            color.setFill()
+            NSBezierPath(ovalIn: NSRect(x: tip.x - 3, y: tip.y - 3, width: 6, height: 6)).fill()
+        }
+
         let circle = NSRect(x: center.x - r, y: center.y - r, width: r*2, height: r*2)
         color.setFill(); NSBezierPath(ovalIn: circle).fill()
         let attrs: [NSAttributedString.Key: Any] = [
@@ -408,7 +426,11 @@ final class StepAnnotation: Annotation {
         label.draw(at: NSPoint(x: center.x - sz.width/2, y: center.y - sz.height/2), withAttributes: attrs)
     }
 
-    override func hitTest(_ p: NSPoint) -> Bool { hypot(p.x - center.x, p.y - center.y) <= r + 6 }
+    override func hitTest(_ p: NSPoint) -> Bool {
+        if hypot(p.x - center.x, p.y - center.y) <= r + 6 { return true }
+        if let tip = leaderEnd { return distanceToSegment(p, a: center, b: tip) < 8 }
+        return false
+    }
 }
 
 // MARK: - Blackout
