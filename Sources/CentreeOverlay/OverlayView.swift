@@ -677,6 +677,9 @@ final class OverlayView: NSView {
             let pen = PenAnnotation(color: vm.strokeColor, lineWidth: vm.lineWidth)
             pen.addPoint(pt); vm.pushUndo(); vm.annotations.append(pen)
             inProgressAnnotation = nil
+        case .ruler:
+            inProgressAnnotation = RulerAnnotation(start: pt, end: pt, color: vm.strokeColor,
+                                                   lineWidth: vm.lineWidth, scaleFactor: scaleFactor)
         case .blur:
             inProgressAnnotation = BlurAnnotation(rect: .init(origin: pt, size: .zero),
                                                   radius: vm.blurRadius)
@@ -767,6 +770,12 @@ final class OverlayView: NSView {
             }
         case .highlight:
             if let s = dragStart { inProgressAnnotation = HighlightAnnotation(rect: makeRect(s, cur), color: vm.strokeColor, opacity: vm.highlightOpacity) }
+        case .ruler:
+            if let s = dragStart {
+                let end = event.modifierFlags.contains(.shift) ? angleSnapped(from: s, to: cur) : cur
+                inProgressAnnotation = RulerAnnotation(start: s, end: end, color: vm.strokeColor,
+                                                       lineWidth: vm.lineWidth, scaleFactor: scaleFactor)
+            }
         case .pen:
             (vm.annotations.last as? PenAnnotation)?.addPoint(cur)
         case .freehandArrow:
@@ -821,7 +830,7 @@ final class OverlayView: NSView {
             moveOrigin = nil; activeHandle = nil
         case .pen, .freehandArrow:
             break
-        case .rect, .ellipse, .line, .arrow, .highlight, .blur, .pixelate, .blackout, .spotlight, .magnify:
+        case .ruler, .rect, .ellipse, .line, .arrow, .highlight, .blur, .pixelate, .blackout, .spotlight, .magnify:
             if let ann = inProgressAnnotation {
                 vm.addAnnotation(ann)
                 // Auto-select the just-placed annotation so it can be immediately resized
@@ -991,6 +1000,7 @@ final class OverlayView: NSView {
         case let e as EllipseAnnotation:   e.rect   = e.rect.offsetBy(dx: dx, dy: dy)
         case let a as ArrowAnnotation:     a.start  = .init(x: a.start.x+dx, y: a.start.y+dy); a.end = .init(x: a.end.x+dx, y: a.end.y+dy)
         case let l as LineAnnotation:      l.start  = .init(x: l.start.x+dx, y: l.start.y+dy); l.end = .init(x: l.end.x+dx, y: l.end.y+dy)
+        case let ru as RulerAnnotation:    ru.start = .init(x: ru.start.x+dx, y: ru.start.y+dy); ru.end = .init(x: ru.end.x+dx, y: ru.end.y+dy)
         case let t as TextAnnotation:           t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
         case let t as TextOutlineAnnotation:    t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
         case let t as TextBackgroundAnnotation: t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)

@@ -28,6 +28,7 @@ public enum AnnotationTool: String, CaseIterable {
     case image         = "image"         // Insert an image file
     case crop          = "crop"          // Re-crop the captured area
     case eraser        = "eraser"        // Erase existing annotations
+    case ruler         = "ruler"         // Distance measurement ruler
 }
 
 // MARK: - Base
@@ -665,6 +666,66 @@ final class ImageAnnotation: Annotation {
     override func hitTest(_ p: NSPoint) -> Bool {
         NSRect(origin: origin, size: size).insetBy(dx: -6, dy: -6).contains(p)
     }
+}
+
+// MARK: - Ruler
+
+/// Distance measurement ruler.  Shows a line with endpoint caps, distance label,
+/// and optional per-100-pixel tick marks.
+final class RulerAnnotation: Annotation {
+    var start: NSPoint
+    var end: NSPoint
+    /// Display scale factor (points → pixels) used to annotate physical pixel count.
+    var scaleFactor: CGFloat
+
+    init(start: NSPoint, end: NSPoint, color: NSColor = .systemCyan,
+         lineWidth: CGFloat = 1.5, scaleFactor: CGFloat = 2) {
+        self.start = start; self.end = end; self.scaleFactor = scaleFactor
+        super.init(color: color, lineWidth: lineWidth)
+    }
+
+    override func draw(in _: NSRect) {
+        guard hypot(end.x - start.x, end.y - start.y) > 4 else { return }
+        let len = hypot(end.x - start.x, end.y - start.y)
+        let angle = atan2(end.y - start.y, end.x - start.x)
+
+        color.setStroke(); color.setFill()
+
+        // Main line
+        let line = NSBezierPath()
+        line.lineWidth = lineWidth; line.lineCapStyle = .round
+        line.move(to: start); line.line(to: end); line.stroke()
+
+        // Endpoint caps (perpendicular 8pt ticks)
+        let capLen: CGFloat = 8
+        let perp = angle + .pi / 2
+        for pt in [start, end] {
+            let cap = NSBezierPath()
+            cap.lineWidth = lineWidth
+            cap.move(to: NSPoint(x: pt.x - capLen/2 * cos(perp), y: pt.y - capLen/2 * sin(perp)))
+            cap.line(to: NSPoint(x: pt.x + capLen/2 * cos(perp), y: pt.y + capLen/2 * sin(perp)))
+            cap.stroke()
+        }
+
+        // Distance label at midpoint
+        let midX = (start.x + end.x) / 2
+        let midY = (start.y + end.y) / 2
+        let px = Int((len * scaleFactor).rounded())
+        let label = "\(px) px"
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: NSColor.white,
+        ]
+        let str = NSAttributedString(string: label, attributes: attrs)
+        let sz = str.size(); let pad: CGFloat = 4
+        let bgRect = NSRect(x: midX - sz.width/2 - pad, y: midY - sz.height/2 - pad/2,
+                            width: sz.width + pad*2, height: sz.height + pad)
+        NSColor.black.withAlphaComponent(0.7).setFill()
+        NSBezierPath(roundedRect: bgRect, xRadius: 3, yRadius: 3).fill()
+        str.draw(at: NSPoint(x: midX - sz.width/2, y: midY - sz.height/2))
+    }
+
+    override func hitTest(_ p: NSPoint) -> Bool { distanceToSegment(p, a: start, b: end) < 8 }
 }
 
 // MARK: - Geometry helper

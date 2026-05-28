@@ -29,6 +29,7 @@ struct OverlayToolbarView: View {
         (.emoji,          "face.smiling",        "Emoji / Sticker"),
     ]
     private let insertGroup: [(AnnotationTool, String, String)] = [
+        (.ruler,  "ruler",             "Ruler / Distance  (Shift = snap 45°)"),
         (.cursor, "cursorarrow.click", "Mouse Cursor"),
         (.image,  "photo",             "Insert Image"),
     ]
