@@ -73,7 +73,7 @@ final class OverlayView: NSView {
             drawBackground(in: ctx, clippedTo: sel)
             ctx.setStrokeColor(NSColor.white.cgColor); ctx.setLineWidth(1.5)
             ctx.stroke(sel.insetBy(dx: 0.75, dy: 0.75))
-            drawHandles(sel, ctx: ctx); drawSizeLabel(sel)
+            drawHandles(sel, ctx: ctx); drawSizeLabel(sel, showCoords: true)
         } else if let win = hoveredWindowRect, vm.activeTool == .region {
             drawBackground(in: ctx, clippedTo: win)
             let p = NSBezierPath(rect: win.insetBy(dx: 1, dy: 1))
@@ -339,7 +339,8 @@ final class OverlayView: NSView {
         let lbX = mx + (magW - csz.width) / 2 - cpad
         let lbY = my + magH + 3
         let lbBg = NSRect(x: lbX, y: lbY, width: csz.width + cpad * 2, height: csz.height + cpad)
-        NSBezierPath(roundedRect: lbBg, xRadius: 3, yRadius: 3).fill(with: .init(white: 0, alpha: 0.72))
+        NSColor(white: 0, alpha: 0.72).setFill()
+        NSBezierPath(roundedRect: lbBg, xRadius: 3, yRadius: 3).fill()
         coordStr.draw(at: NSPoint(x: lbX + cpad, y: lbY + cpad / 2))
     }
 
@@ -469,6 +470,7 @@ final class OverlayView: NSView {
                 vm.selectionRect = live
             } else if let win = hoveredWindowRect {
                 vm.selectionRect = toViewRect(win)
+                if vm.windowPickerMode { requestFinish(); return }
             }
             liveSelectionRect = nil
         case .select:
@@ -569,8 +571,8 @@ final class OverlayView: NSView {
     private func updateHoveredWindow() {
         guard let w = window else { hoveredWindowRect = nil; return }
         let sp = w.convertToScreen(NSRect(origin: mousePos.unflipped(in: bounds), size: .zero)).origin
-        let hit = scWindows.filter { $0.frame.contains(sp) && $0.frame.width > 10 }
-                           .max { $0.windowLayer < $1.windowLayer }
+        // SCK returns windows front-to-back — first match is topmost
+        let hit = scWindows.first { $0.frame.contains(sp) && $0.frame.width > 10 }
         hoveredWindowRect = hit.map { $0.frame }
     }
 

@@ -84,14 +84,21 @@ final class CaptureCoordinator: ObservableObject {
 
     private func runWindowPicker() async {
         do {
-            let (_, scWindows) = try await provider.fetchContent()
-            guard !scWindows.isEmpty else { return }
-
-            guard let window = await WindowPickerPanel.shared.pick(from: scWindows) else { return }
-
             await applyDelay()
-            let shot = try await capturer.capture(mode: .window(CGWindowID(window.windowID)))
-            await finalize(image: shot.image, sourceRect: shot.sourceRect, scaleFactor: shot.scaleFactor)
+            let (displays, scWindows) = try await provider.fetchContent()
+            guard !displays.isEmpty else { return }
+
+            var backgrounds: [(frame: CGRect, image: CGImage)] = []
+            for display in displays {
+                let shot = try await capturer.capture(mode: .fullScreen(displayID: display.displayID))
+                backgrounds.append((frame: display.frame, image: shot.image))
+            }
+
+            let result = await overlay.show(backgrounds: backgrounds, scWindows: scWindows, windowPickerMode: true)
+            guard case .captured(let image, let sourceRect, let scale) = result else { return }
+
+            Defaults[.lastCaptureRect] = StoredRect(sourceRect)
+            await finalize(image: image, sourceRect: sourceRect, scaleFactor: scale)
         } catch { showError(error) }
     }
 

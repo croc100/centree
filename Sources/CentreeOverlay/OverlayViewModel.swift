@@ -30,6 +30,9 @@ final class OverlayViewModel: ObservableObject {
     @Published var selectionRect: NSRect? = nil
     var hasSelection: Bool { selectionRect != nil }
 
+    /// When true: clicking a hovered window immediately fires capture (no Enter needed).
+    var windowPickerMode: Bool = false
+
     // MARK: Callbacks (set by OverlayWindowController)
 
     var onDone: (() -> Void)?

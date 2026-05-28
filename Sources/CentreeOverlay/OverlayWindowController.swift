@@ -27,18 +27,20 @@ public final class OverlayWindowController {
 
     public func show(
         backgrounds: [(frame: CGRect, image: CGImage)],
-        scWindows: [SCWindow] = []
+        scWindows: [SCWindow] = [],
+        windowPickerMode: Bool = false
     ) async -> OverlayResult {
         await withCheckedContinuation { cont in
             self.continuation = cont
-            self.present(backgrounds: backgrounds, scWindows: scWindows)
+            self.present(backgrounds: backgrounds, scWindows: scWindows, windowPickerMode: windowPickerMode)
         }
     }
 
     // MARK: - Present
 
-    private func present(backgrounds: [(frame: CGRect, image: CGImage)], scWindows: [SCWindow]) {
+    private func present(backgrounds: [(frame: CGRect, image: CGImage)], scWindows: [SCWindow], windowPickerMode: Bool = false) {
         viewModel = OverlayViewModel()
+        viewModel.windowPickerMode = windowPickerMode
         viewModel.onDone   = { [weak self] in self?.handleDone() }
         viewModel.onCancel = { [weak self] in self?.finish(with: .cancelled) }
 
@@ -60,8 +62,8 @@ public final class OverlayWindowController {
             windows.append(window)
             overlayViews.append(view)
 
-            // Place toolbar on the display that has the cursor
-            if frame == cursorScreen?.frame ?? frame {
+            // Toolbar not shown in window-picker mode (click-to-capture, no annotation)
+            if !windowPickerMode, frame == cursorScreen?.frame ?? frame {
                 addToolbar(to: window, screen: NSScreen.screens.first(where: { $0.frame == frame }))
             }
         }
