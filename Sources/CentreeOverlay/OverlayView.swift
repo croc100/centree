@@ -30,6 +30,7 @@ final class OverlayView: NSView {
     private var mousePos: NSPoint = .zero
     private var selectedAnnotation: Annotation?
     private var moveOrigin: NSPoint?
+    private var activeHandle: Int?   // 0-7 = rect handle index, 10-11 = line endpoint index
     private var editingTextField: NSTextField?
     private var eraserDidPushUndo = false
     private var editingObserver: NSObjectProtocol?
@@ -75,10 +76,11 @@ final class OverlayView: NSView {
             ctx.stroke(sel.insetBy(dx: 0.75, dy: 0.75))
             drawHandles(sel, ctx: ctx); drawSizeLabel(sel, showCoords: true)
         } else if let win = hoveredWindowRect, vm.activeTool == .region {
-            drawBackground(in: ctx, clippedTo: win)
-            let p = NSBezierPath(rect: win.insetBy(dx: 1, dy: 1))
+            let winView = toViewRect(win)   // convert Quartz screen coords → flipped view coords
+            drawBackground(in: ctx, clippedTo: winView)
+            let p = NSBezierPath(rect: winView.insetBy(dx: 1, dy: 1))
             p.lineWidth = 2; NSColor.systemBlue.setStroke(); p.stroke()
-            drawSizeLabel(win)
+            drawSizeLabel(winView)
         }
 
         // Collect spotlights separately — drawn as a unified overlay at end
@@ -124,15 +126,23 @@ final class OverlayView: NSView {
                 drawMagnifier(at: mousePos, in: ctx)
             }
         }
+
+        // Selection handles for the currently selected annotation (select tool)
+        if vm.activeTool == .select, let sel = selectedAnnotation {
+            drawSelectionHandles(for: sel, in: ctx)
+        }
     }
 
-    // NSImage.draw applies an extra vertical flip in a flipped NSView (it "corrects"
-    // for CG's bottom-origin, but the CTM already handles that → double-flip → upside down).
-    // Draw CGImage directly: the flipped CTM maps row 0 to visual-top, which is correct
-    // because the SCK-captured CGImage stores the screen top in row 0.
+    // CGImage from CIImage(cvPixelBuffer:) has row 0 at the BOTTOM (CG / CIImage convention).
+    // In an isFlipped NSView, ctx.draw() would put row 0 at the visual top → upside-down.
+    // Fix: cancel the view's flip (translate+scale) so the context is back to CG convention
+    // (y=0=bottom), then draw. The pre-existing device-space clip from `clip` is unaffected.
     private func drawBackground(in ctx: CGContext, clippedTo clip: CGRect? = nil) {
         ctx.saveGState()
         if let clip { ctx.clip(to: clip) }
+        let h = bounds.height
+        ctx.translateBy(x: 0, y: h)
+        ctx.scaleBy(x: 1, y: -1)
         ctx.draw(baseCGImage, in: CGRect(origin: .zero, size: bounds.size))
         ctx.restoreGState()
     }
@@ -212,9 +222,13 @@ final class OverlayView: NSView {
         }
     }
 
+    // Converts a view-coordinate rect (flipped, y=0=top) to a CGImage pixel rect (y=0=bottom).
     private func pixelRect(_ r: NSRect) -> CGRect {
-        CGRect(x: r.minX * scaleFactor, y: r.minY * scaleFactor,
-               width: r.width * scaleFactor, height: r.height * scaleFactor)
+        let imgH = CGFloat(baseCGImage.height)
+        return CGRect(x: r.minX * scaleFactor,
+                      y: imgH - r.maxY * scaleFactor,
+                      width: r.width * scaleFactor,
+                      height: r.height * scaleFactor)
     }
 
     private func drawHandles(_ rect: NSRect, ctx: CGContext) {
@@ -223,6 +237,110 @@ final class OverlayView: NSView {
         [CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.minY),
          CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.maxX, y: rect.maxY)].forEach {
             ctx.fill(CGRect(x: $0.x - s/2, y: $0.y - s/2, width: s, height: s))
+        }
+    }
+
+    // MARK: - Annotation selection helpers
+
+    /// 8 resize handle rects (TL,TC,TR,MR,BR,BC,BL,ML) in view coords.
+    private func handleRects(for r: NSRect) -> [NSRect] {
+        let s: CGFloat = 10; let hs = s / 2
+        return [
+            NSRect(x: r.minX-hs, y: r.minY-hs, width: s, height: s),   // 0 TL
+            NSRect(x: r.midX-hs, y: r.minY-hs, width: s, height: s),   // 1 TC
+            NSRect(x: r.maxX-hs, y: r.minY-hs, width: s, height: s),   // 2 TR
+            NSRect(x: r.maxX-hs, y: r.midY-hs, width: s, height: s),   // 3 MR
+            NSRect(x: r.maxX-hs, y: r.maxY-hs, width: s, height: s),   // 4 BR
+            NSRect(x: r.midX-hs, y: r.maxY-hs, width: s, height: s),   // 5 BC
+            NSRect(x: r.minX-hs, y: r.maxY-hs, width: s, height: s),   // 6 BL
+            NSRect(x: r.minX-hs, y: r.midY-hs, width: s, height: s),   // 7 ML
+        ]
+    }
+
+    /// Returns a bounding rect for rect-based annotations; nil for line/arrow/point-based.
+    private func annotationBoundingRect(_ ann: Annotation) -> NSRect? {
+        switch ann {
+        case let a as RectAnnotation:         return a.rect
+        case let a as EllipseAnnotation:      return a.rect
+        case let a as HighlightAnnotation:    return a.rect
+        case let a as BlurAnnotation:         return a.rect
+        case let a as PixelateAnnotation:     return a.rect
+        case let a as BlackoutAnnotation:     return a.rect
+        case let a as SpeechBalloonAnnotation:return a.rect
+        case let a as SpotlightAnnotation:    return a.rect
+        case let a as MagnifyAnnotation:      return a.rect
+        default: return nil
+        }
+    }
+
+    private func drawSelectionHandles(for ann: Annotation, in ctx: CGContext) {
+        ctx.saveGState()
+        ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.8).cgColor)
+        ctx.setFillColor(NSColor.white.cgColor)
+        ctx.setLineWidth(1)
+
+        if let br = annotationBoundingRect(ann) {
+            // Dashed selection border
+            ctx.setLineDash(phase: 0, lengths: [5, 3])
+            ctx.stroke(br.insetBy(dx: -1, dy: -1))
+            ctx.setLineDash(phase: 0, lengths: [])
+            // 8 resize handles
+            for hr in handleRects(for: br) {
+                ctx.fill(hr)
+                ctx.setStrokeColor(NSColor.systemBlue.cgColor)
+                ctx.stroke(hr)
+            }
+        } else if let line = ann as? LineAnnotation {
+            for pt in [line.start, line.end] {
+                ctx.fill(CGRect(x: pt.x-5, y: pt.y-5, width: 10, height: 10))
+            }
+        } else if let arr = ann as? ArrowAnnotation {
+            for pt in [arr.start, arr.end] {
+                ctx.fill(CGRect(x: pt.x-5, y: pt.y-5, width: 10, height: 10))
+            }
+        }
+        ctx.restoreGState()
+    }
+
+    private func applyRectResize(ann: Annotation, handle: Int, dx: CGFloat, dy: CGFloat) {
+        func resized(_ r: NSRect) -> NSRect {
+            var x = r.minX; var y = r.minY; var w = r.width; var h = r.height
+            switch handle {
+            case 0: x += dx; y += dy; w -= dx; h -= dy   // TL
+            case 1:           y += dy;          h -= dy   // TC
+            case 2:           y += dy; w += dx; h -= dy   // TR
+            case 3:                    w += dx            // MR
+            case 4:                    w += dx; h += dy   // BR
+            case 5:                             h += dy   // BC
+            case 6: x += dx;           w -= dx; h += dy   // BL
+            case 7: x += dx;           w -= dx            // ML
+            default: break
+            }
+            return NSRect(x: x, y: y, width: max(8, w), height: max(8, h))
+        }
+        switch ann {
+        case let a as RectAnnotation:         a.rect = resized(a.rect)
+        case let a as EllipseAnnotation:      a.rect = resized(a.rect)
+        case let a as HighlightAnnotation:    a.rect = resized(a.rect)
+        case let a as BlurAnnotation:         a.rect = resized(a.rect)
+        case let a as PixelateAnnotation:     a.rect = resized(a.rect)
+        case let a as BlackoutAnnotation:     a.rect = resized(a.rect)
+        case let a as SpeechBalloonAnnotation:a.rect = resized(a.rect)
+        case let a as SpotlightAnnotation:    a.rect = resized(a.rect)
+        case let a as MagnifyAnnotation:      a.rect = resized(a.rect)
+        default: break
+        }
+    }
+
+    private func applyLineResize(ann: Annotation, endpointIdx: Int, dx: CGFloat, dy: CGFloat) {
+        switch ann {
+        case let a as LineAnnotation:
+            if endpointIdx == 0 { a.start.x += dx; a.start.y += dy }
+            else                { a.end.x   += dx; a.end.y   += dy }
+        case let a as ArrowAnnotation:
+            if endpointIdx == 0 { a.start.x += dx; a.start.y += dy }
+            else                { a.end.x   += dx; a.end.y   += dy }
+        default: break
         }
     }
 
@@ -258,11 +376,11 @@ final class OverlayView: NSView {
         let magW = CGFloat(pixelCount) * zoom   // 88
         let magH = CGFloat(pixelCount) * zoom
 
-        // Crop region in baseCGImage coords (y=0=top, same as view coords × sf)
+        // Crop region in CGImage coords: x = pos.x*sf, y = imgH - pos.y*sf (y=0=bottom)
         let cx = (pos.x * scaleFactor).rounded()
-        let cy = (pos.y * scaleFactor).rounded()
         let imgW = CGFloat(baseCGImage.width)
         let imgH = CGFloat(baseCGImage.height)
+        let cy = (imgH - pos.y * scaleFactor).rounded()   // flip: view y=0=top → CGImage y=0=bottom
         let srcRect = CGRect(x: max(0, cx - CGFloat(half)),
                              y: max(0, cy - CGFloat(half)),
                              width: CGFloat(pixelCount),
@@ -280,10 +398,14 @@ final class OverlayView: NSView {
         let magRect = CGRect(x: mx, y: my, width: magW, height: magH)
 
         // ── Draw zoomed pixels (nearest-neighbor) ──────────────────────────
+        // CGImage row 0=bottom; cancel the view flip so ctx.draw renders correctly.
         ctx.saveGState()
-        ctx.clip(to: magRect)
+        ctx.clip(to: magRect)      // clip in flipped view coords (device-space clip)
         ctx.interpolationQuality = .none
-        ctx.draw(cropped, in: magRect)
+        let bh = bounds.height
+        ctx.translateBy(x: 0, y: bh); ctx.scaleBy(x: 1, y: -1)
+        // magRect in new CG coords: origin = (mx, bh-my-magH)
+        ctx.draw(cropped, in: CGRect(x: mx, y: bh - my - magH, width: magW, height: magH))
         ctx.restoreGState()
 
         // ── Grid lines ─────────────────────────────────────────────────────
@@ -349,10 +471,36 @@ final class OverlayView: NSView {
         let pt = convert(event.locationInWindow, from: nil)
         dragStart = pt
 
+        // Double-click inside an existing selection → finalize capture (ShareX behaviour)
+        if event.clickCount == 2, vm.activeTool == .region, vm.selectionRect != nil {
+            requestFinish(); return
+        }
+
         switch vm.activeTool {
         case .region:
             liveSelectionRect = nil; hoveredWindowRect = nil
         case .select:
+            // Check if clicking on a resize/endpoint handle of the currently selected annotation
+            activeHandle = nil
+            if let sel = selectedAnnotation {
+                if let br = annotationBoundingRect(sel) {
+                    if let hi = handleRects(for: br).firstIndex(where: { $0.contains(pt) }) {
+                        activeHandle = hi; moveOrigin = pt; needsDisplay = true; return
+                    }
+                } else if let line = sel as? LineAnnotation {
+                    let handles = [NSRect(x: line.start.x-5, y: line.start.y-5, width: 10, height: 10),
+                                   NSRect(x: line.end.x-5, y: line.end.y-5, width: 10, height: 10)]
+                    if let hi = handles.firstIndex(where: { $0.contains(pt) }) {
+                        activeHandle = hi + 10; moveOrigin = pt; needsDisplay = true; return
+                    }
+                } else if let arr = sel as? ArrowAnnotation {
+                    let handles = [NSRect(x: arr.start.x-5, y: arr.start.y-5, width: 10, height: 10),
+                                   NSRect(x: arr.end.x-5, y: arr.end.y-5, width: 10, height: 10)]
+                    if let hi = handles.firstIndex(where: { $0.contains(pt) }) {
+                        activeHandle = hi + 10; moveOrigin = pt; needsDisplay = true; return
+                    }
+                }
+            }
             selectedAnnotation = vm.annotations.last(where: { $0.hitTest(pt) })
             moveOrigin = pt
         case .text:
@@ -419,8 +567,13 @@ final class OverlayView: NSView {
         case .region:
             if let s = dragStart { liveSelectionRect = makeRect(s, cur) }
         case .select:
-            if let sel = selectedAnnotation, let o = moveOrigin {
-                moveAnnotation(sel, dx: cur.x - o.x, dy: cur.y - o.y); moveOrigin = cur
+            guard let ann = selectedAnnotation, let o = moveOrigin else { break }
+            let dx = cur.x - o.x; let dy = cur.y - o.y; moveOrigin = cur
+            if let h = activeHandle {
+                if h < 10 { applyRectResize(ann: ann, handle: h, dx: dx, dy: dy) }
+                else       { applyLineResize(ann: ann, endpointIdx: h - 10, dx: dx, dy: dy) }
+            } else {
+                moveAnnotation(ann, dx: dx, dy: dy)
             }
         case .rect:
             if let s = dragStart { inProgressAnnotation = RectAnnotation(rect: makeRect(s, cur), color: vm.strokeColor, lineWidth: vm.lineWidth) }
@@ -474,17 +627,23 @@ final class OverlayView: NSView {
             }
             liveSelectionRect = nil
         case .select:
-            moveOrigin = nil
+            moveOrigin = nil; activeHandle = nil
         case .pen:
             break
         case .rect, .ellipse, .line, .arrow, .highlight, .blur, .pixelate, .blackout, .spotlight, .magnify:
-            if let ann = inProgressAnnotation { vm.addAnnotation(ann) }
+            if let ann = inProgressAnnotation {
+                vm.addAnnotation(ann)
+                // Auto-select the just-placed annotation so it can be immediately resized
+                selectedAnnotation = ann
+                vm.activeTool = .select
+            }
             inProgressAnnotation = nil
         case .speechBalloon:
             if let ann = inProgressAnnotation as? SpeechBalloonAnnotation,
                ann.rect.width > 20, ann.rect.height > 20 {
                 vm.addAnnotation(ann)
                 beginBalloonTextInput(balloon: ann, vm: vm)
+                selectedAnnotation = ann; vm.activeTool = .select
             }
             inProgressAnnotation = nil
         case .eraser:

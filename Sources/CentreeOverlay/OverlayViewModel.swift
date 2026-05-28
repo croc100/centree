@@ -90,9 +90,13 @@ final class OverlayViewModel: ObservableObject {
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
         ) else { return nil }
 
-        // 1. Draw base cropped image
-        // Overlay view is isFlipped=true: pixel(sel.minX * sf, sel.minY * sf) = top-left of selection
-        let pixelOrigin = CGPoint(x: sel.minX * scaleFactor, y: sel.minY * scaleFactor)
+        // 1. Draw base cropped image.
+        // CGImage row 0 = screen BOTTOM (CIImage convention, y=0=bottom).
+        // sel is in flipped view coords (y=0=top).
+        // CGImage crop: x = sel.minX*sf, y = imgH - sel.maxY*sf (convert top→bottom origin).
+        let imageH = CGFloat(baseCGImage.height)
+        let pixelOrigin = CGPoint(x: sel.minX * scaleFactor,
+                                   y: imageH - sel.maxY * scaleFactor)
         let pixelSize   = CGSize(width: CGFloat(w), height: CGFloat(h))
         let pixelRect   = CGRect(origin: pixelOrigin, size: pixelSize)
 
@@ -172,7 +176,7 @@ final class OverlayViewModel: ObservableObject {
             for sp in spotlights {
                 let relRect = CGRect(
                     x: (sp.rect.minX - sel.minX) * scaleFactor,
-                    y: (sp.rect.minY - sel.minY) * scaleFactor,
+                    y: (sel.maxY     - sp.rect.maxY) * scaleFactor,    // flip: view y→CG y
                     width:  sp.rect.width  * scaleFactor,
                     height: sp.rect.height * scaleFactor)
                 fullPath.addEllipse(in: relRect)
@@ -199,9 +203,11 @@ final class OverlayViewModel: ObservableObject {
         let clipped = viewRect.intersection(sel)
         guard !clipped.isEmpty else { return .zero }
 
+        // Output CG context is y=0=bottom. Selection bottom (sel.maxY in view) → y=0 in output.
+        // Annotation at view clipped.maxY → output y = (sel.maxY - clipped.maxY)*scale.
         return CGRect(
             x: (clipped.minX - sel.minX) * scale,
-            y: (clipped.minY - sel.minY) * scale,
+            y: (sel.maxY - clipped.maxY) * scale,
             width:  clipped.width  * scale,
             height: clipped.height * scale
         )
