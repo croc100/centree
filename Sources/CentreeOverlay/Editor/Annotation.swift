@@ -3,28 +3,31 @@ import AppKit
 // MARK: - Tool
 
 public enum AnnotationTool: String, CaseIterable {
-    case region        = "region"       // crosshair — drag to select capture area (rectangle)
-    case freehand      = "freehand"     // freehand / polygon region selection
-    case select        = "select"       // move / delete existing annotations
+    case region        = "region"        // crosshair — drag to select capture area (rectangle)
+    case freehand      = "freehand"      // freehand / polygon region selection
+    case select        = "select"        // move / delete existing annotations
     case rect          = "rectangle"
     case ellipse       = "ellipse"
     case line          = "line"
     case arrow         = "arrow"
+    case freehandArrow = "freehandArrow" // curved arrow along a freehand path
     case text          = "text"
+    case textOutline   = "textOutline"   // text with stroke outline
+    case textBackground = "textBackground" // text with filled background
     case highlight     = "highlight"
     case pen           = "pen"
     case step          = "step"
-    case blur          = "blur"         // Gaussian blur (redaction)
-    case pixelate      = "pixelate"     // Mosaic / pixelate (redaction)
-    case blackout      = "blackout"     // Solid fill
-    case speechBalloon = "speechBalloon"// Rounded-rect speech bubble with text
-    case spotlight     = "spotlight"    // Darken everything outside this region
-    case magnify       = "magnify"      // Zoom loupe showing region at larger scale
-    case emoji         = "emoji"        // Place an emoji / text sticker
-    case cursor        = "cursor"       // Overlay the system arrow cursor
-    case image         = "image"        // Insert an image file
-    case crop          = "crop"         // Re-crop the captured area
-    case eraser        = "eraser"       // Erase existing annotations
+    case blur          = "blur"          // Gaussian blur (redaction)
+    case pixelate      = "pixelate"      // Mosaic / pixelate (redaction)
+    case blackout      = "blackout"      // Solid fill
+    case speechBalloon = "speechBalloon" // Rounded-rect speech bubble with text
+    case spotlight     = "spotlight"     // Darken everything outside this region
+    case magnify       = "magnify"       // Zoom loupe showing region at larger scale
+    case emoji         = "emoji"         // Place an emoji / text sticker
+    case cursor        = "cursor"        // Overlay the system arrow cursor
+    case image         = "image"         // Insert an image file
+    case crop          = "crop"          // Re-crop the captured area
+    case eraser        = "eraser"        // Erase existing annotations
 }
 
 // MARK: - Base
@@ -143,6 +146,58 @@ final class ArrowAnnotation: Annotation {
     override func hitTest(_ p: NSPoint) -> Bool { distanceToSegment(p, a: start, b: end) < 8 }
 }
 
+// MARK: - Freehand Arrow
+// A freehand curved path with an arrowhead at the last point.
+
+final class FreehandArrowAnnotation: Annotation {
+    var points: [NSPoint] = []
+
+    override init(color: NSColor, lineWidth: CGFloat) { super.init(color: color, lineWidth: lineWidth) }
+
+    func addPoint(_ p: NSPoint) { points.append(p) }
+
+    override func draw(in _: NSRect) {
+        guard points.count > 1 else { return }
+        color.setStroke(); color.setFill()
+        let path = NSBezierPath()
+        path.lineWidth = lineWidth
+        path.lineCapStyle = .round; path.lineJoinStyle = .round
+
+        // Catmull-Rom spline, same as PenAnnotation
+        path.move(to: points[0])
+        if points.count > 2 {
+            for i in 1..<points.count - 1 {
+                let p0 = points[max(0, i - 1)]
+                let p1 = points[i]
+                let p2 = points[min(points.count - 1, i + 1)]
+                let cp1 = NSPoint(x: p1.x + (p2.x - p0.x) / 6, y: p1.y + (p2.y - p0.y) / 6)
+                let cp2 = NSPoint(x: p2.x - (points[min(points.count - 1, i + 2)].x - p1.x) / 6,
+                                  y: p2.y - (points[min(points.count - 1, i + 2)].y - p1.y) / 6)
+                path.curve(to: p2, controlPoint1: cp1, controlPoint2: cp2)
+            }
+        } else {
+            path.line(to: points[1])
+        }
+        path.stroke()
+
+        // Arrowhead at last point, direction from second-to-last to last
+        let last  = points[points.count - 1]
+        let prev  = points.count > 3 ? points[points.count - 4] : points[points.count - 2]
+        let angle = atan2(last.y - prev.y, last.x - prev.x)
+        let hl: CGFloat = max(12, lineWidth * 4), ha: CGFloat = .pi / 6
+        let p1 = NSPoint(x: last.x - hl * cos(angle - ha), y: last.y - hl * sin(angle - ha))
+        let p2 = NSPoint(x: last.x - hl * cos(angle + ha), y: last.y - hl * sin(angle + ha))
+        let head = NSBezierPath(); head.move(to: last); head.line(to: p1); head.line(to: p2); head.close()
+        head.fill()
+    }
+
+    override func hitTest(_ p: NSPoint) -> Bool {
+        guard points.count > 1 else { return false }
+        for i in 1..<points.count { if distanceToSegment(p, a: points[i-1], b: points[i]) < 8 { return true } }
+        return false
+    }
+}
+
 // MARK: - Text
 
 final class TextAnnotation: Annotation {
@@ -167,6 +222,73 @@ final class TextAnnotation: Annotation {
     override func hitTest(_ p: NSPoint) -> Bool {
         let sz = (text as NSString).size(withAttributes: attrs)
         return NSRect(origin: origin, size: sz).insetBy(dx: -4, dy: -4).contains(p)
+    }
+}
+
+// MARK: - Text Outline (text with stroke outline for legibility on any background)
+
+final class TextOutlineAnnotation: Annotation {
+    var origin: NSPoint
+    var text: String
+    var fontSize: CGFloat
+    /// Outline color drawn via NSStrokeColorAttributeName (defaults to white for dark-on-light scenarios)
+    var outlineColor: NSColor
+
+    init(origin: NSPoint, text: String, color: NSColor, fontSize: CGFloat, outlineColor: NSColor = .white) {
+        self.origin = origin; self.text = text; self.fontSize = fontSize; self.outlineColor = outlineColor
+        super.init(color: color, lineWidth: 1)
+    }
+
+    private var attrs: [NSAttributedString.Key: Any] {
+        [.font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
+         .foregroundColor: color,
+         .strokeColor: outlineColor,
+         .strokeWidth: -3.0]   // negative = fill AND stroke
+    }
+
+    override func draw(in _: NSRect) {
+        guard !text.isEmpty else { return }
+        NSAttributedString(string: text, attributes: attrs).draw(at: origin)
+    }
+
+    override func hitTest(_ p: NSPoint) -> Bool {
+        let sz = (text as NSString).size(withAttributes: attrs)
+        return NSRect(origin: origin, size: sz).insetBy(dx: -4, dy: -4).contains(p)
+    }
+}
+
+// MARK: - Text Background (text with a filled box behind it)
+
+final class TextBackgroundAnnotation: Annotation {
+    var origin: NSPoint
+    var text: String
+    var fontSize: CGFloat
+    /// Fill color of the background rect behind the text.
+    var backgroundColor: NSColor
+
+    init(origin: NSPoint, text: String, color: NSColor, fontSize: CGFloat, backgroundColor: NSColor = .black) {
+        self.origin = origin; self.text = text; self.fontSize = fontSize; self.backgroundColor = backgroundColor
+        super.init(color: color, lineWidth: 1)
+    }
+
+    private var attrs: [NSAttributedString.Key: Any] {
+        [.font: NSFont.systemFont(ofSize: fontSize, weight: .semibold), .foregroundColor: color]
+    }
+
+    override func draw(in _: NSRect) {
+        guard !text.isEmpty else { return }
+        let sz = (text as NSString).size(withAttributes: attrs)
+        let pad: CGFloat = 4
+        let bgRect = NSRect(x: origin.x - pad, y: origin.y - pad / 2,
+                            width: sz.width + pad * 2, height: sz.height + pad)
+        backgroundColor.withAlphaComponent(0.85).setFill()
+        NSBezierPath(roundedRect: bgRect, xRadius: 3, yRadius: 3).fill()
+        NSAttributedString(string: text, attributes: attrs).draw(at: origin)
+    }
+
+    override func hitTest(_ p: NSPoint) -> Bool {
+        let sz = (text as NSString).size(withAttributes: attrs)
+        return NSRect(origin: origin, size: sz).insetBy(dx: -8, dy: -6).contains(p)
     }
 }
 

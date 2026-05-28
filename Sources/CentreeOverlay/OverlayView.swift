@@ -380,18 +380,31 @@ final class OverlayView: NSView {
         ctx.restoreGState()
     }
 
-    private func applyRectResize(ann: Annotation, handle: Int, dx: CGFloat, dy: CGFloat) {
+    private func applyRectResize(ann: Annotation, handle: Int, dx: CGFloat, dy: CGFloat,
+                                 proportional: Bool = false) {
         func resized(_ r: NSRect) -> NSRect {
             var x = r.minX; var y = r.minY; var w = r.width; var h = r.height
+            var ddx = dx, ddy = dy
+            // Proportional resize: constrain the larger delta to match aspect ratio
+            if proportional {
+                let ratio = r.width > 0 ? r.height / r.width : 1
+                switch handle {
+                case 0, 2, 4, 6: // corners — use whichever axis moved more
+                    let bigger = abs(ddx) > abs(ddy) ? abs(ddx) : abs(ddy)
+                    ddx = ddx < 0 ? -bigger : bigger
+                    ddy = ddy < 0 ? -bigger * ratio : bigger * ratio
+                default: break
+                }
+            }
             switch handle {
-            case 0: x += dx; y += dy; w -= dx; h -= dy   // TL
-            case 1:           y += dy;          h -= dy   // TC
-            case 2:           y += dy; w += dx; h -= dy   // TR
-            case 3:                    w += dx            // MR
-            case 4:                    w += dx; h += dy   // BR
-            case 5:                             h += dy   // BC
-            case 6: x += dx;           w -= dx; h += dy   // BL
-            case 7: x += dx;           w -= dx            // ML
+            case 0: x += ddx; y += ddy; w -= ddx; h -= ddy   // TL
+            case 1:            y += ddy;            h -= ddy   // TC
+            case 2:            y += ddy; w += ddx;  h -= ddy   // TR
+            case 3:                      w += ddx              // MR
+            case 4:                      w += ddx;  h += ddy   // BR
+            case 5:                                 h += ddy   // BC
+            case 6: x += ddx;            w -= ddx;  h += ddy   // BL
+            case 7: x += ddx;            w -= ddx              // ML
             default: break
             }
             return NSRect(x: x, y: y, width: max(8, w), height: max(8, h))
@@ -599,8 +612,15 @@ final class OverlayView: NSView {
             }
             selectedAnnotation = vm.annotations.last(where: { $0.hitTest(pt) })
             moveOrigin = pt
+        case .freehandArrow:
+            let fa = FreehandArrowAnnotation(color: vm.strokeColor, lineWidth: vm.lineWidth)
+            fa.addPoint(pt); vm.pushUndo(); vm.annotations.append(fa)
         case .text:
             beginTextInput(at: pt, vm: vm)
+        case .textOutline:
+            beginTextOutlineInput(at: pt, vm: vm)
+        case .textBackground:
+            beginTextBackgroundInput(at: pt, vm: vm)
         case .step:
             vm.addAnnotation(StepAnnotation(center: pt, number: vm.nextStepNumber, color: vm.strokeColor))
         case .rect:
@@ -676,23 +696,38 @@ final class OverlayView: NSView {
             guard let ann = selectedAnnotation, let o = moveOrigin else { break }
             let dx = cur.x - o.x; let dy = cur.y - o.y; moveOrigin = cur
             if let h = activeHandle {
-                if h < 10 { applyRectResize(ann: ann, handle: h, dx: dx, dy: dy) }
+                if h < 10 { applyRectResize(ann: ann, handle: h, dx: dx, dy: dy,
+                                            proportional: event.modifierFlags.contains(.shift)) }
                 else       { applyLineResize(ann: ann, endpointIdx: h - 10, dx: dx, dy: dy) }
             } else {
                 moveAnnotation(ann, dx: dx, dy: dy)
             }
         case .rect:
-            if let s = dragStart { inProgressAnnotation = RectAnnotation(rect: makeRect(s, cur), color: vm.strokeColor, lineWidth: vm.lineWidth) }
+            if let s = dragStart {
+                let r = event.modifierFlags.contains(.shift) ? makeSquare(s, cur) : makeRect(s, cur)
+                inProgressAnnotation = RectAnnotation(rect: r, color: vm.strokeColor, lineWidth: vm.lineWidth)
+            }
         case .ellipse:
-            if let s = dragStart { inProgressAnnotation = EllipseAnnotation(rect: makeRect(s, cur), color: vm.strokeColor, lineWidth: vm.lineWidth) }
+            if let s = dragStart {
+                let r = event.modifierFlags.contains(.shift) ? makeSquare(s, cur) : makeRect(s, cur)
+                inProgressAnnotation = EllipseAnnotation(rect: r, color: vm.strokeColor, lineWidth: vm.lineWidth)
+            }
         case .line:
-            if let s = dragStart { inProgressAnnotation = LineAnnotation(start: s, end: cur, color: vm.strokeColor, lineWidth: vm.lineWidth) }
+            if let s = dragStart {
+                let end = event.modifierFlags.contains(.shift) ? angleSnapped(from: s, to: cur) : cur
+                inProgressAnnotation = LineAnnotation(start: s, end: end, color: vm.strokeColor, lineWidth: vm.lineWidth)
+            }
         case .arrow:
-            if let s = dragStart { inProgressAnnotation = ArrowAnnotation(start: s, end: cur, color: vm.strokeColor, lineWidth: vm.lineWidth) }
+            if let s = dragStart {
+                let end = event.modifierFlags.contains(.shift) ? angleSnapped(from: s, to: cur) : cur
+                inProgressAnnotation = ArrowAnnotation(start: s, end: end, color: vm.strokeColor, lineWidth: vm.lineWidth)
+            }
         case .highlight:
             if let s = dragStart { inProgressAnnotation = HighlightAnnotation(rect: makeRect(s, cur), color: vm.strokeColor, opacity: vm.highlightOpacity) }
         case .pen:
             (vm.annotations.last as? PenAnnotation)?.addPoint(cur)
+        case .freehandArrow:
+            (vm.annotations.last as? FreehandArrowAnnotation)?.addPoint(cur)
         case .blur:
             if let s = dragStart { inProgressAnnotation = BlurAnnotation(rect: makeRect(s, cur), radius: vm.blurRadius) }
         case .pixelate:
@@ -716,7 +751,7 @@ final class OverlayView: NSView {
             }
         case .eraser:
             eraseAnnotation(at: cur, vm: vm)
-        case .text, .step, .emoji, .cursor, .image: break
+        case .text, .textOutline, .textBackground, .step, .emoji, .cursor, .image: break
         }
         needsDisplay = true
     }
@@ -738,7 +773,7 @@ final class OverlayView: NSView {
             liveSelectionRect = nil
         case .select:
             moveOrigin = nil; activeHandle = nil
-        case .pen:
+        case .pen, .freehandArrow:
             break
         case .rect, .ellipse, .line, .arrow, .highlight, .blur, .pixelate, .blackout, .spotlight, .magnify:
             if let ann = inProgressAnnotation {
@@ -758,7 +793,7 @@ final class OverlayView: NSView {
             inProgressAnnotation = nil
         case .eraser:
             eraserDidPushUndo = false
-        case .text, .step, .emoji, .cursor, .image, .crop:
+        case .text, .textOutline, .textBackground, .step, .emoji, .cursor, .image, .crop:
             break
         }
         dragStart = nil; needsDisplay = true
@@ -810,6 +845,55 @@ final class OverlayView: NSView {
         }
     }
 
+    private func beginTextOutlineInput(at pt: NSPoint, vm: OverlayViewModel) {
+        guard editingTextField == nil else { return }
+        let field = NSTextField(frame: NSRect(x: pt.x, y: pt.y, width: 200, height: 32))
+        field.isBordered = true; field.backgroundColor = NSColor(white: 0, alpha: 0.5)
+        field.textColor = vm.strokeColor
+        field.font = NSFont.systemFont(ofSize: vm.fontSize, weight: .semibold)
+        field.placeholderString = "Outlined text…"; field.focusRingType = .none
+        addSubview(field); editingTextField = field; window?.makeFirstResponder(field)
+        editingObserver = NotificationCenter.default.addObserver(
+            forName: NSControl.textDidEndEditingNotification, object: field, queue: .main
+        ) { [weak self, weak field] _ in
+            guard let self, let field else { return }
+            let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            field.removeFromSuperview(); self.editingTextField = nil
+            if !text.isEmpty {
+                vm.addAnnotation(TextOutlineAnnotation(origin: pt, text: text, color: vm.strokeColor, fontSize: vm.fontSize))
+            }
+            self.needsDisplay = true
+            if let obs = self.editingObserver { NotificationCenter.default.removeObserver(obs) }
+            self.editingObserver = nil
+        }
+    }
+
+    private func beginTextBackgroundInput(at pt: NSPoint, vm: OverlayViewModel) {
+        guard editingTextField == nil else { return }
+        let field = NSTextField(frame: NSRect(x: pt.x, y: pt.y, width: 200, height: 32))
+        field.isBordered = true; field.backgroundColor = NSColor(white: 0, alpha: 0.5)
+        field.textColor = vm.strokeColor
+        field.font = NSFont.systemFont(ofSize: vm.fontSize, weight: .semibold)
+        field.placeholderString = "Background text…"; field.focusRingType = .none
+        addSubview(field); editingTextField = field; window?.makeFirstResponder(field)
+        editingObserver = NotificationCenter.default.addObserver(
+            forName: NSControl.textDidEndEditingNotification, object: field, queue: .main
+        ) { [weak self, weak field] _ in
+            guard let self, let field else { return }
+            let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            field.removeFromSuperview(); self.editingTextField = nil
+            if !text.isEmpty {
+                // Background is complementary to stroke: dark label ↔ light bg
+                let bg: NSColor = vm.strokeColor.isLight ? .black : .white
+                vm.addAnnotation(TextBackgroundAnnotation(origin: pt, text: text, color: vm.strokeColor,
+                                                          fontSize: vm.fontSize, backgroundColor: bg))
+            }
+            self.needsDisplay = true
+            if let obs = self.editingObserver { NotificationCenter.default.removeObserver(obs) }
+            self.editingObserver = nil
+        }
+    }
+
     private func beginBalloonTextInput(balloon: SpeechBalloonAnnotation, vm: OverlayViewModel) {
         guard editingTextField == nil else { return }
         let pad: CGFloat = 10
@@ -851,7 +935,9 @@ final class OverlayView: NSView {
         case let e as EllipseAnnotation:   e.rect   = e.rect.offsetBy(dx: dx, dy: dy)
         case let a as ArrowAnnotation:     a.start  = .init(x: a.start.x+dx, y: a.start.y+dy); a.end = .init(x: a.end.x+dx, y: a.end.y+dy)
         case let l as LineAnnotation:      l.start  = .init(x: l.start.x+dx, y: l.start.y+dy); l.end = .init(x: l.end.x+dx, y: l.end.y+dy)
-        case let t as TextAnnotation:      t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
+        case let t as TextAnnotation:           t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
+        case let t as TextOutlineAnnotation:    t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
+        case let t as TextBackgroundAnnotation: t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
         case let h as HighlightAnnotation: h.rect   = h.rect.offsetBy(dx: dx, dy: dy)
         case let p as PenAnnotation:       p.points = p.points.map { .init(x: $0.x+dx, y: $0.y+dy) }
         case let s as StepAnnotation:      s.center = .init(x: s.center.x+dx, y: s.center.y+dy)
@@ -933,9 +1019,36 @@ final class OverlayView: NSView {
     private func makeRect(_ a: NSPoint, _ b: NSPoint) -> NSRect {
         NSRect(x: min(a.x,b.x), y: min(a.y,b.y), width: abs(b.x-a.x), height: abs(b.y-a.y))
     }
+
+    /// Square-constrained rect (Shift key for rect/ellipse).
+    private func makeSquare(_ a: NSPoint, _ b: NSPoint) -> NSRect {
+        let side = min(abs(b.x - a.x), abs(b.y - a.y))
+        let x = b.x >= a.x ? a.x : a.x - side
+        let y = b.y >= a.y ? a.y : a.y - side
+        return NSRect(x: x, y: y, width: side, height: side)
+    }
+
+    /// Snaps `to` to the nearest 45° direction from `from` (Shift-constrained line/arrow).
+    private func angleSnapped(from a: NSPoint, to b: NSPoint) -> NSPoint {
+        let dx = b.x - a.x, dy = b.y - a.y
+        let len = hypot(dx, dy)
+        guard len > 0 else { return b }
+        let angle = atan2(dy, dx)
+        let snapped = (angle / (.pi / 4)).rounded() * (.pi / 4)
+        return NSPoint(x: a.x + len * cos(snapped), y: a.y + len * sin(snapped))
+    }
 }
 
 private extension NSPoint {
     func unflipped(in bounds: NSRect) -> NSPoint { NSPoint(x: x, y: bounds.height - y) }
+}
+
+private extension NSColor {
+    /// Returns true when the perceived luminance is above 0.5 (i.e. colour is light).
+    var isLight: Bool {
+        guard let c = usingColorSpace(.deviceRGB) else { return false }
+        let r = c.redComponent, g = c.greenComponent, b = c.blueComponent
+        return 0.299 * r + 0.587 * g + 0.114 * b > 0.5
+    }
 }
 

@@ -13,17 +13,20 @@ struct OverlayToolbarView: View {
         (.eraser,   "eraser",             "Eraser"),
     ]
     private let shapeGroup: [(AnnotationTool, String, String)] = [
-        (.rect,    "rectangle",           "Rectangle"),
-        (.ellipse, "oval",                "Ellipse"),
-        (.line,    "line.diagonal",       "Line"),
-        (.arrow,   "arrow.up.right",      "Arrow"),
-        (.pen,     "pencil",              "Freehand"),
+        (.rect,         "rectangle",              "Rectangle  (Shift = square)"),
+        (.ellipse,      "oval",                   "Ellipse  (Shift = circle)"),
+        (.line,         "line.diagonal",          "Line  (Shift = 45° snap)"),
+        (.arrow,        "arrow.up.right",         "Arrow  (Shift = 45° snap)"),
+        (.freehandArrow,"arrow.up.right.circle",  "Freehand Arrow"),
+        (.pen,          "pencil",                 "Freehand Pen"),
     ]
     private let textGroup: [(AnnotationTool, String, String)] = [
-        (.text,          "textformat",       "Text"),
-        (.step,          "number.circle",    "Step Number"),
-        (.speechBalloon, "bubble.left",      "Speech Balloon"),
-        (.emoji,         "face.smiling",     "Emoji / Sticker"),
+        (.text,           "textformat",          "Text"),
+        (.textOutline,    "textformat.alt",      "Text Outline"),
+        (.textBackground, "text.badge.plus",     "Text Background"),
+        (.step,           "number.circle",       "Step Number"),
+        (.speechBalloon,  "bubble.left",         "Speech Balloon"),
+        (.emoji,          "face.smiling",        "Emoji / Sticker"),
     ]
     private let insertGroup: [(AnnotationTool, String, String)] = [
         (.cursor, "cursorarrow.click", "Mouse Cursor"),
@@ -110,13 +113,13 @@ struct OverlayToolbarView: View {
                     Image(systemName: "sun.max").font(.caption)
                 }
             }
-            if [.rect, .ellipse, .line, .arrow, .pen].contains(vm.activeTool) {
+            if [.rect, .ellipse, .line, .arrow, .freehandArrow, .pen].contains(vm.activeTool) {
                 Stepper(value: $vm.lineWidth, in: 1...12, step: 1) {
                     Text("\(Int(vm.lineWidth))px")
                         .font(.caption).monospacedDigit().frame(width: 32)
                 }.frame(width: 88)
             }
-            if vm.activeTool == .text {
+            if [.text, .textOutline, .textBackground].contains(vm.activeTool) {
                 Stepper(value: $vm.fontSize, in: 10...72, step: 2) {
                     Text("\(Int(vm.fontSize))pt")
                         .font(.caption).monospacedDigit().frame(width: 32)
