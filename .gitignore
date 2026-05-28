@@ -63,3 +63,6 @@ dist/
 .env.*
 Secrets.swift
 GoogleService-Info.plist
+
+# ── Reference code (not part of the project) ─────────────────────────────────
+ShareX-develop/

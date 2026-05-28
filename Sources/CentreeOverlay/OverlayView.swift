@@ -120,15 +120,13 @@ final class OverlayView: NSView {
         }
     }
 
-    // CIContext-created CGImage has row 0 = bottom (CG convention). In a flipped
-    // NSView the CTM maps y=0→visual-top, so a naive ctx.draw puts bottom-of-screen
-    // at the visual top. Cancel the flip before drawing so CG-native orientation
-    // renders correctly: row 0 (bottom of screen) → visual bottom.
+    // NSImage.draw applies an extra vertical flip in a flipped NSView (it "corrects"
+    // for CG's bottom-origin, but the CTM already handles that → double-flip → upside down).
+    // Draw CGImage directly: the flipped CTM maps row 0 to visual-top, which is correct
+    // because the SCK-captured CGImage stores the screen top in row 0.
     private func drawBackground(in ctx: CGContext, clippedTo clip: CGRect? = nil) {
         ctx.saveGState()
         if let clip { ctx.clip(to: clip) }
-        ctx.translateBy(x: 0, y: bounds.height)
-        ctx.scaleBy(x: 1, y: -1)
         ctx.draw(baseCGImage, in: CGRect(origin: .zero, size: bounds.size))
         ctx.restoreGState()
     }
