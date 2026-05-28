@@ -109,14 +109,20 @@ final class OverlayView: NSView {
             cropPath.stroke()
         }
 
-        if vm.activeTool == .region, dragStart == nil {
-            ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.6).cgColor)
+        if vm.activeTool == .region {
+            // Full-screen crosshair (always, thin)
+            ctx.setStrokeColor(NSColor.white.withAlphaComponent(0.5).cgColor)
             ctx.setLineWidth(0.5); ctx.beginPath()
             ctx.move(to: .init(x: 0, y: mousePos.y))
             ctx.addLine(to: .init(x: bounds.width, y: mousePos.y))
             ctx.move(to: .init(x: mousePos.x, y: 0))
             ctx.addLine(to: .init(x: mousePos.x, y: bounds.height))
             ctx.strokePath()
+
+            // Magnifier loupe (before final selection)
+            if vm.selectionRect == nil {
+                drawMagnifier(at: mousePos, in: ctx)
+            }
         }
     }
 
@@ -220,9 +226,16 @@ final class OverlayView: NSView {
         }
     }
 
-    private func drawSizeLabel(_ rect: NSRect) {
+    private func drawSizeLabel(_ rect: NSRect, showCoords: Bool = false) {
+        let sf = scaleFactor
+        let text: String
+        if showCoords {
+            text = "X: \(Int(rect.minX * sf))  Y: \(Int(rect.minY * sf))  W: \(Int(rect.width * sf))  H: \(Int(rect.height * sf))"
+        } else {
+            text = "\(Int(rect.width * sf)) × \(Int(rect.height * sf))"
+        }
         let str = NSAttributedString(
-            string: "\(Int(rect.width * scaleFactor)) × \(Int(rect.height * scaleFactor))",
+            string: text,
             attributes: [.font: NSFont.monospacedSystemFont(ofSize: 11, weight: .medium),
                          .foregroundColor: NSColor.white])
         let sz = str.size(); let pad: CGFloat = 5
@@ -233,6 +246,101 @@ final class OverlayView: NSView {
         NSColor(white: 0, alpha: 0.7).setFill()
         bg.fill()
         str.draw(at: NSPoint(x: lx + pad, y: ly + pad/2))
+    }
+
+    // ShareX-style pixel magnifier with coordinate readout.
+    // Crops pixelCount×pixelCount pixels from baseCGImage around the cursor,
+    // scales them up with nearest-neighbor, overlays a grid and crosshair.
+    private func drawMagnifier(at pos: NSPoint, in ctx: CGContext) {
+        let pixelCount = 11          // source pixels per side (must be odd)
+        let zoom: CGFloat = 8        // each source pixel → zoom×zoom points
+        let half = pixelCount / 2    // = 5
+        let magW = CGFloat(pixelCount) * zoom   // 88
+        let magH = CGFloat(pixelCount) * zoom
+
+        // Crop region in baseCGImage coords (y=0=top, same as view coords × sf)
+        let cx = (pos.x * scaleFactor).rounded()
+        let cy = (pos.y * scaleFactor).rounded()
+        let imgW = CGFloat(baseCGImage.width)
+        let imgH = CGFloat(baseCGImage.height)
+        let srcRect = CGRect(x: max(0, cx - CGFloat(half)),
+                             y: max(0, cy - CGFloat(half)),
+                             width: CGFloat(pixelCount),
+                             height: CGFloat(pixelCount))
+            .intersection(CGRect(x: 0, y: 0, width: imgW, height: imgH))
+        guard let cropped = baseCGImage.cropping(to: srcRect) else { return }
+
+        // Position near cursor; flip sides to stay on screen
+        let gap: CGFloat = 20
+        let labelH: CGFloat = 22
+        var mx = pos.x + gap
+        var my = pos.y + gap
+        if mx + magW > bounds.width  - 8 { mx = pos.x - gap - magW }
+        if my + magH + labelH > bounds.height - 8 { my = pos.y - gap - magH - labelH }
+        let magRect = CGRect(x: mx, y: my, width: magW, height: magH)
+
+        // ── Draw zoomed pixels (nearest-neighbor) ──────────────────────────
+        ctx.saveGState()
+        ctx.clip(to: magRect)
+        ctx.interpolationQuality = .none
+        ctx.draw(cropped, in: magRect)
+        ctx.restoreGState()
+
+        // ── Grid lines ─────────────────────────────────────────────────────
+        ctx.saveGState()
+        ctx.setStrokeColor(NSColor.black.withAlphaComponent(0.3).cgColor)
+        ctx.setLineWidth(0.5)
+        for i in 1..<pixelCount {
+            let x = mx + CGFloat(i) * zoom
+            ctx.move(to: CGPoint(x: x, y: my)); ctx.addLine(to: CGPoint(x: x, y: my + magH))
+        }
+        for i in 1..<pixelCount {
+            let y = my + CGFloat(i) * zoom
+            ctx.move(to: CGPoint(x: mx, y: y)); ctx.addLine(to: CGPoint(x: mx + magW, y: y))
+        }
+        ctx.strokePath()
+        ctx.restoreGState()
+
+        // ── Center crosshair bars (light-blue tint, ShareX style) ──────────
+        let cpx = mx + CGFloat(half) * zoom
+        let cpy = my + CGFloat(half) * zoom
+        ctx.saveGState()
+        ctx.setFillColor(NSColor(red: 0.6, green: 0.88, blue: 1.0, alpha: 0.45).cgColor)
+        ctx.fill(CGRect(x: mx, y: cpy, width: cpx - mx, height: zoom))             // left
+        ctx.fill(CGRect(x: cpx + zoom, y: cpy, width: mx + magW - cpx - zoom, height: zoom)) // right
+        ctx.fill(CGRect(x: cpx, y: my, width: zoom, height: cpy - my))             // top
+        ctx.fill(CGRect(x: cpx, y: cpy + zoom, width: zoom, height: my + magH - cpy - zoom)) // bottom
+        ctx.restoreGState()
+
+        // ── Center pixel highlight (black outer + white inner border) ───────
+        ctx.saveGState()
+        ctx.setStrokeColor(NSColor.black.cgColor); ctx.setLineWidth(1.5)
+        ctx.stroke(CGRect(x: cpx - 1, y: cpy - 1, width: zoom + 2, height: zoom + 2))
+        ctx.setStrokeColor(NSColor.white.cgColor); ctx.setLineWidth(0.5)
+        ctx.stroke(CGRect(x: cpx, y: cpy, width: zoom - 1, height: zoom - 1))
+        ctx.restoreGState()
+
+        // ── Magnifier border (white 2pt outer, black 1pt inner) ────────────
+        ctx.saveGState()
+        ctx.setStrokeColor(NSColor.white.cgColor); ctx.setLineWidth(2)
+        ctx.stroke(magRect.insetBy(dx: -1, dy: -1))
+        ctx.setStrokeColor(NSColor.black.cgColor); ctx.setLineWidth(1)
+        ctx.stroke(magRect)
+        ctx.restoreGState()
+
+        // ── Coordinate label below magnifier ───────────────────────────────
+        let screenX = Int(pos.x * scaleFactor)
+        let screenY = Int(pos.y * scaleFactor)
+        let coordStr = NSAttributedString(
+            string: "X: \(screenX)  Y: \(screenY)",
+            attributes: [.font: NSFont.monospacedSystemFont(ofSize: 10, weight: .regular),
+                         .foregroundColor: NSColor.white])
+        let csz = coordStr.size(); let cpad: CGFloat = 4
+        let lbX = mx + (magW - csz.width) / 2 - cpad
+        let lbY = my + magH + 3
+        let lbBg = NSRect(x: lbX, y: lbY, width: csz.width + cpad * 2, height: csz.height + cpad)
+        NSBezierPath(roundedRect: lbBg, xRadius: 3, yRadius: 3).fill(with: .init(white: 0, alpha: 0.72))
+        coordStr.draw(at: NSPoint(x: lbX + cpad, y: lbY + cpad / 2))
     }
 
     override func mouseDown(with event: NSEvent) {
