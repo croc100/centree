@@ -31,6 +31,10 @@ final class OverlayView: NSView {
     private var selectedAnnotation: Annotation?
     private var moveOrigin: NSPoint?
     private var activeHandle: Int?   // 0-7 = rect handle index, 10-11 = line endpoint index
+
+    // Freehand / Polygon region
+    private var freehandPoints: [NSPoint] = []
+    private var isPolygonMode: Bool = false   // true = click-to-add-point; false = drag-to-draw
     private var editingTextField: NSTextField?
     private var eraserDidPushUndo = false
     private var editingObserver: NSObjectProtocol?
@@ -125,6 +129,11 @@ final class OverlayView: NSView {
             if vm.selectionRect == nil {
                 drawMagnifier(at: mousePos, in: ctx)
             }
+        }
+
+        // Freehand / Polygon region drawing
+        if vm.activeTool == .freehand, !freehandPoints.isEmpty {
+            drawFreehandOverlay(ctx: ctx)
         }
 
         // Selection handles for the currently selected annotation (select tool)
@@ -229,6 +238,75 @@ final class OverlayView: NSView {
                       y: imgH - r.maxY * scaleFactor,
                       width: r.width * scaleFactor,
                       height: r.height * scaleFactor)
+    }
+
+    // MARK: - Freehand region
+
+    private func drawFreehandOverlay(ctx: CGContext) {
+        guard freehandPoints.count > 1 else { return }
+        let path = NSBezierPath()
+        path.move(to: freehandPoints[0])
+        if freehandPoints.count > 2 {
+            // Cardinal spline for smooth freehand
+            for i in 1..<freehandPoints.count - 1 {
+                let p0 = freehandPoints[max(0, i-1)]
+                let p1 = freehandPoints[i]
+                let p2 = freehandPoints[min(freehandPoints.count-1, i+1)]
+                let cp1 = NSPoint(x: p1.x + (p2.x - p0.x)/6, y: p1.y + (p2.y - p0.y)/6)
+                let cp2 = NSPoint(x: p2.x - (freehandPoints[min(freehandPoints.count-1, i+2)].x - p1.x)/6,
+                                  y: p2.y - (freehandPoints[min(freehandPoints.count-1, i+2)].y - p1.y)/6)
+                path.curve(to: p2, controlPoint1: cp1, controlPoint2: cp2)
+            }
+        } else {
+            path.line(to: freehandPoints[1])
+        }
+
+        // Draw selected area clear + path stroke
+        if freehandPoints.count > 3 {
+            let closedPath = path.copy() as! NSBezierPath
+            closedPath.close()
+            NSGraphicsContext.saveGraphicsState()
+            closedPath.addClip()
+            drawBackground(in: ctx, clippedTo: nil)
+            NSGraphicsContext.restoreGraphicsState()
+        }
+
+        // Path outline
+        NSColor.white.setStroke()
+        path.lineWidth = 1.5
+        path.lineCapStyle = .round; path.lineJoinStyle = .round
+        path.setLineDash([6, 3], count: 2, phase: 0)
+        path.stroke()
+
+        // Vertex dots in polygon mode
+        if isPolygonMode {
+            NSColor.systemBlue.setFill()
+            for pt in freehandPoints {
+                NSBezierPath(ovalIn: NSRect(x: pt.x-4, y: pt.y-4, width: 8, height: 8)).fill()
+            }
+        }
+
+        // Closing line preview (polygon mode)
+        if isPolygonMode, freehandPoints.count > 2 {
+            let closeLine = NSBezierPath()
+            closeLine.move(to: freehandPoints.last!); closeLine.line(to: freehandPoints[0])
+            NSColor.white.withAlphaComponent(0.4).setStroke()
+            closeLine.lineWidth = 1; closeLine.setLineDash([4, 4], count: 2, phase: 0); closeLine.stroke()
+        }
+    }
+
+    private func finalizeFreehandRegion(vm: OverlayViewModel) {
+        guard freehandPoints.count > 2 else { return }
+        // Bounding rect of the freehand path → selection rect (ShareX also uses bounding rect)
+        let minX = freehandPoints.map(\.x).min()!
+        let maxX = freehandPoints.map(\.x).max()!
+        let minY = freehandPoints.map(\.y).min()!
+        let maxY = freehandPoints.map(\.y).max()!
+        let bbox = NSRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+        guard bbox.width > 5, bbox.height > 5 else { freehandPoints = []; return }
+        vm.selectionRect = bbox
+        freehandPoints = []
+        isPolygonMode = false
     }
 
     private func drawHandles(_ rect: NSRect, ctx: CGContext) {
@@ -471,12 +549,30 @@ final class OverlayView: NSView {
         let pt = convert(event.locationInWindow, from: nil)
         dragStart = pt
 
-        // Double-click inside an existing selection → finalize capture (ShareX behaviour)
-        if event.clickCount == 2, vm.activeTool == .region, vm.selectionRect != nil {
-            requestFinish(); return
+        // Double-click: finalize capture or close polygon
+        if event.clickCount == 2 {
+            if vm.activeTool == .region, vm.selectionRect != nil {
+                requestFinish(); return
+            }
+            if vm.activeTool == .freehand, isPolygonMode, freehandPoints.count > 2 {
+                finalizeFreehandRegion(vm: vm); return
+            }
+        }
+
+        // Freehand: Shift key → polygon mode (click-to-add vertices)
+        if vm.activeTool == .freehand {
+            isPolygonMode = event.modifierFlags.contains(.shift)
         }
 
         switch vm.activeTool {
+        case .freehand:
+            if isPolygonMode {
+                // Polygon mode: each click adds a vertex (Shift was pressed at start)
+                freehandPoints.append(pt)
+            } else {
+                // Freehand mode: drag draws free path
+                freehandPoints = [pt]
+            }
         case .region:
             liveSelectionRect = nil; hoveredWindowRect = nil
         case .select:
@@ -521,7 +617,7 @@ final class OverlayView: NSView {
                                                    color: vm.strokeColor, lineWidth: vm.lineWidth)
         case .highlight:
             inProgressAnnotation = HighlightAnnotation(rect: .init(origin: pt, size: .zero),
-                                                       color: vm.strokeColor)
+                                                       color: vm.strokeColor, opacity: vm.highlightOpacity)
         case .pen:
             let pen = PenAnnotation(color: vm.strokeColor, lineWidth: vm.lineWidth)
             pen.addPoint(pt); vm.pushUndo(); vm.annotations.append(pen)
@@ -564,6 +660,16 @@ final class OverlayView: NSView {
         let cur = convert(event.locationInWindow, from: nil)
 
         switch vm.activeTool {
+        case .freehand:
+            if !isPolygonMode {
+                // Freehand drag: add smoothed points
+                let last = freehandPoints.last ?? cur
+                let dist = hypot(cur.x - last.x, cur.y - last.y)
+                if dist > 3 { freehandPoints.append(cur) }
+            } else {
+                // Polygon: update the "rubber-band" last point while dragging
+                if freehandPoints.count > 1 { freehandPoints[freehandPoints.count - 1] = cur }
+            }
         case .region:
             if let s = dragStart { liveSelectionRect = makeRect(s, cur) }
         case .select:
@@ -584,7 +690,7 @@ final class OverlayView: NSView {
         case .arrow:
             if let s = dragStart { inProgressAnnotation = ArrowAnnotation(start: s, end: cur, color: vm.strokeColor, lineWidth: vm.lineWidth) }
         case .highlight:
-            if let s = dragStart { inProgressAnnotation = HighlightAnnotation(rect: makeRect(s, cur), color: vm.strokeColor) }
+            if let s = dragStart { inProgressAnnotation = HighlightAnnotation(rect: makeRect(s, cur), color: vm.strokeColor, opacity: vm.highlightOpacity) }
         case .pen:
             (vm.annotations.last as? PenAnnotation)?.addPoint(cur)
         case .blur:
@@ -618,6 +724,10 @@ final class OverlayView: NSView {
     override func mouseUp(with event: NSEvent) {
         guard let vm = viewModel else { return }
         switch vm.activeTool {
+        case .freehand:
+            if !isPolygonMode, freehandPoints.count > 3 {
+                finalizeFreehandRegion(vm: vm)
+            }
         case .region:
             if let live = liveSelectionRect, live.width > 5, live.height > 5 {
                 vm.selectionRect = live

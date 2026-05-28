@@ -13,6 +13,7 @@ final class OverlayViewModel: ObservableObject {
     @Published var strokeColor: NSColor = .systemRed
     @Published var lineWidth: CGFloat = 2
     @Published var fontSize: CGFloat = 18
+    @Published var highlightOpacity: CGFloat = 0.35
     @Published var blurRadius: CGFloat = 20
     @Published var pixelateSize: CGFloat = 12
     @Published var magnifyScale: CGFloat = 2

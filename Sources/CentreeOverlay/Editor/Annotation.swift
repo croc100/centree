@@ -3,7 +3,8 @@ import AppKit
 // MARK: - Tool
 
 public enum AnnotationTool: String, CaseIterable {
-    case region        = "region"       // crosshair — drag to select capture area
+    case region        = "region"       // crosshair — drag to select capture area (rectangle)
+    case freehand      = "freehand"     // freehand / polygon region selection
     case select        = "select"       // move / delete existing annotations
     case rect          = "rectangle"
     case ellipse       = "ellipse"
@@ -173,14 +174,16 @@ final class TextAnnotation: Annotation {
 
 final class HighlightAnnotation: Annotation {
     var rect: NSRect
+    /// Opacity of the highlight fill (0.1 – 0.85). Default 0.35 matches ShareX.
+    var opacity: CGFloat
 
-    init(rect: NSRect, color: NSColor) {
-        self.rect = rect
+    init(rect: NSRect, color: NSColor, opacity: CGFloat = 0.35) {
+        self.rect = rect; self.opacity = opacity
         super.init(color: color, lineWidth: 0)
     }
 
     override func draw(in _: NSRect) {
-        color.withAlphaComponent(0.35).setFill()
+        color.withAlphaComponent(opacity).setFill()
         NSBezierPath(rect: rect).fill()
     }
 
@@ -191,10 +194,19 @@ final class HighlightAnnotation: Annotation {
 
 final class PenAnnotation: Annotation {
     var points: [NSPoint] = []
+    /// 0 = no smoothing, 1-10 = increasing weighted smoothing (matches ShareX FreehandSmoothing)
+    var smoothing: Int = 3
 
     override init(color: NSColor, lineWidth: CGFloat) { super.init(color: color, lineWidth: lineWidth) }
 
-    func addPoint(_ p: NSPoint) { points.append(p) }
+    /// Add point with optional weighted smoothing (ShareX SmoothPoint algorithm).
+    func addPoint(_ p: NSPoint) {
+        var pt = p
+        if smoothing > 0, !points.isEmpty {
+            pt = smoothedPoint(p, in: points, smoothing: smoothing)
+        }
+        points.append(pt)
+    }
 
     override func draw(in _: NSRect) {
         guard points.count > 1 else { return }
@@ -202,8 +214,24 @@ final class PenAnnotation: Annotation {
         let path = NSBezierPath()
         path.lineWidth = lineWidth
         path.lineCapStyle = .round; path.lineJoinStyle = .round
-        path.move(to: points[0])
-        points.dropFirst().forEach { path.line(to: $0) }
+
+        if points.count > 2 {
+            // Catmull-Rom cardinal spline (tension 0.5) — smoother than raw polyline
+            path.move(to: points[0])
+            for i in 1..<points.count - 1 {
+                let p0 = points[max(0, i - 1)]
+                let p1 = points[i]
+                let p2 = points[min(points.count - 1, i + 1)]
+                let cp1 = NSPoint(x: p1.x + (p2.x - p0.x) / 6,
+                                  y: p1.y + (p2.y - p0.y) / 6)
+                let cp2 = NSPoint(x: p2.x - (points[min(points.count - 1, i + 2)].x - p1.x) / 6,
+                                  y: p2.y - (points[min(points.count - 1, i + 2)].y - p1.y) / 6)
+                path.curve(to: p2, controlPoint1: cp1, controlPoint2: cp2)
+            }
+        } else {
+            path.move(to: points[0])
+            path.line(to: points[1])
+        }
         path.stroke()
     }
 
@@ -213,6 +241,24 @@ final class PenAnnotation: Annotation {
             if distanceToSegment(p, a: points[i-1], b: points[i]) < 8 { return true }
         }
         return false
+    }
+
+    // ShareX SmoothPoint: weighted moving average over recent points with exponential decay.
+    private func smoothedPoint(_ current: NSPoint, in history: [NSPoint], smoothing: Int) -> NSPoint {
+        let s = max(0, min(smoothing, 10))
+        let windowSize = min(s * 4, history.count)
+        guard windowSize > 0 else { return current }
+        var sumX = Double(current.x), sumY = Double(current.y)
+        var weight = 1.0, totalWeight = 1.0
+        let decay = 0.6 + Double(s) * 0.0175
+        for i in 0..<windowSize {
+            let pt = history[history.count - 1 - i]
+            weight *= decay
+            sumX += Double(pt.x) * weight
+            sumY += Double(pt.y) * weight
+            totalWeight += weight
+        }
+        return NSPoint(x: sumX / totalWeight, y: sumY / totalWeight)
     }
 }
 

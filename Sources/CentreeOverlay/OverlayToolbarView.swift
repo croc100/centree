@@ -6,10 +6,11 @@ struct OverlayToolbarView: View {
     @ObservedObject var vm: OverlayViewModel
 
     private let regionGroup: [(AnnotationTool, String, String)] = [
-        (.region, "camera.viewfinder",   "Select Region"),
-        (.select, "cursorarrow",          "Select / Move"),
-        (.crop,   "crop",                 "Crop"),
-        (.eraser, "eraser",               "Eraser"),
+        (.region,   "camera.viewfinder",  "Select Region"),
+        (.freehand, "lasso",              "Freehand / Polygon Region"),
+        (.select,   "cursorarrow",        "Select / Move"),
+        (.crop,     "crop",               "Crop"),
+        (.eraser,   "eraser",             "Eraser"),
     ]
     private let shapeGroup: [(AnnotationTool, String, String)] = [
         (.rect,    "rectangle",           "Rectangle"),
@@ -97,10 +98,17 @@ struct OverlayToolbarView: View {
     @ViewBuilder
     private func toolOptions() -> some View {
         HStack(spacing: 6) {
-            if ![.region, .select, .blur, .pixelate, .blackout, .spotlight,
+            if ![.region, .freehand, .select, .blur, .pixelate, .blackout, .spotlight,
                  .crop, .eraser, .cursor, .image, .emoji].contains(vm.activeTool) {
                 ColorWellRepresentable(color: $vm.strokeColor)
                     .frame(width: 28, height: 22)
+            }
+            if vm.activeTool == .highlight {
+                HStack(spacing: 4) {
+                    Image(systemName: "sun.min").font(.caption)
+                    Slider(value: $vm.highlightOpacity, in: 0.1...0.85).frame(width: 72)
+                    Image(systemName: "sun.max").font(.caption)
+                }
             }
             if [.rect, .ellipse, .line, .arrow, .pen].contains(vm.activeTool) {
                 Stepper(value: $vm.lineWidth, in: 1...12, step: 1) {
