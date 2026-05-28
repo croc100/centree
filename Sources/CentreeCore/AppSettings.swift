@@ -96,6 +96,11 @@ public extension Defaults.Keys {
     /// Imgur Client ID for anonymous image uploads.
     static let imgurClientID = Key<String>("imgurClientID", default: "")
 
+    // MARK: Workflow Profiles
+
+    /// User-defined capture workflow profiles.
+    static let workflowProfiles = Key<[StoredWorkflowProfile]>("workflowProfiles", default: [])
+
     // MARK: Auto Capture
 
     static let autoCaptureEnabled  = Key<Bool>("autoCaptureEnabled",  default: false)
@@ -116,6 +121,38 @@ public enum AutoCaptureMode: String, CaseIterable, Codable, Sendable, Defaults.S
         case .fullScreen:   return "Full Screen (All Displays)"
         case .lastRegion:   return "Last Region"
         }
+    }
+}
+
+// MARK: - Workflow Profile (lightweight, Defaults-serializable)
+
+/// Lightweight representation of a workflow profile stored in Defaults.
+/// Uses the same field names as CentreeWorkflow.WorkflowProfile for easy migration.
+public struct StoredWorkflowProfile: Identifiable, Codable, Sendable, Defaults.Serializable {
+    public let id: UUID
+    public var name: String
+    public var keyCode: UInt32
+    public var modifiers: UInt32
+    /// Raw value of WorkflowCaptureMode
+    public var captureMode: String
+    /// Raw values of OutputDestination
+    public var outputDestinations: [String]
+    public var enabled: Bool
+
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        keyCode: UInt32 = 0,
+        modifiers: UInt32 = 0,
+        captureMode: String = "region",
+        outputDestinations: [String] = ["clipboard"],
+        enabled: Bool = true
+    ) {
+        self.id = id; self.name = name
+        self.keyCode = keyCode; self.modifiers = modifiers
+        self.captureMode = captureMode
+        self.outputDestinations = outputDestinations
+        self.enabled = enabled
     }
 }
 

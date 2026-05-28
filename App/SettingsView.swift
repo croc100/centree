@@ -10,17 +10,19 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralTab()
-                .tabItem { Label("General",  systemImage: "gearshape") }
+                .tabItem { Label("General",   systemImage: "gearshape") }
             HotkeysTab()
-                .tabItem { Label("Hotkeys",  systemImage: "keyboard") }
+                .tabItem { Label("Hotkeys",   systemImage: "keyboard") }
             OutputTab()
-                .tabItem { Label("Output",   systemImage: "square.and.arrow.down") }
+                .tabItem { Label("Output",    systemImage: "square.and.arrow.down") }
             PipelineTab()
-                .tabItem { Label("Pipeline", systemImage: "arrow.trianglehead.2.clockwise") }
+                .tabItem { Label("Pipeline",  systemImage: "arrow.trianglehead.2.clockwise") }
             RegionsTab()
-                .tabItem { Label("Regions",  systemImage: "rectangle.dashed") }
+                .tabItem { Label("Regions",   systemImage: "rectangle.dashed") }
+            WorkflowsTab()
+                .tabItem { Label("Workflows", systemImage: "flowchart") }
         }
-        .frame(width: 540, height: 420)
+        .frame(width: 580, height: 440)
     }
 }
 
@@ -446,6 +448,100 @@ private struct HotkeyRecorderView: NSViewRepresentable {
             super.viewDidMoveToWindow()
             if window == nil { stopMonitor() }
         }
+    }
+}
+
+// MARK: - Workflows Tab
+
+private struct WorkflowsTab: View {
+    @Default(.workflowProfiles) var profiles
+
+    @State private var showAdd = false
+    @State private var newName = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Workflow profiles bind a hotkey to a complete capture + output sequence.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("+ Add") { showAdd = true }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+
+            if showAdd {
+                HStack {
+                    TextField("Profile name", text: $newName)
+                        .textFieldStyle(.roundedBorder).frame(width: 200)
+                    Button("Create") {
+                        guard !newName.isEmpty else { return }
+                        profiles.append(StoredWorkflowProfile(name: newName))
+                        newName = ""; showAdd = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(newName.isEmpty)
+                    Button("Cancel") { showAdd = false; newName = "" }
+                }
+                .padding(.horizontal, 14).padding(.bottom, 6)
+                Divider()
+            }
+
+            if profiles.isEmpty {
+                Spacer()
+                VStack(spacing: 6) {
+                    Image(systemName: "flowchart").font(.system(size: 36, weight: .ultraLight)).foregroundStyle(.tertiary)
+                    Text("No workflow profiles").foregroundStyle(.secondary)
+                }
+                Spacer()
+            } else {
+                List {
+                    ForEach(profiles) { profile in
+                        WorkflowRow(profile: profile, profiles: $profiles)
+                    }
+                    .onDelete { idx in profiles.remove(atOffsets: idx) }
+                }
+                .listStyle(.plain)
+            }
+        }
+        .padding()
+    }
+}
+
+private struct WorkflowRow: View {
+    let profile: StoredWorkflowProfile
+    @Binding var profiles: [StoredWorkflowProfile]
+
+    private var idx: Int? { profiles.firstIndex(where: { $0.id == profile.id }) }
+
+    private var hotkeyLabel: String {
+        guard profile.keyCode > 0,
+              let key = Key(carbonKeyCode: profile.keyCode) else { return "–" }
+        return CarbonModifiers.symbol(profile.modifiers) + key.description.uppercased()
+    }
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(profile.name).fontWeight(.medium)
+                Text("Hotkey: \(hotkeyLabel)  ·  Mode: \(profile.captureMode)  ·  Output: \(profile.outputDestinations.joined(separator: ", "))")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Spacer()
+            if let i = idx {
+                Toggle("", isOn: Binding(
+                    get: { profiles[i].enabled },
+                    set: { profiles[i].enabled = $0 }
+                ))
+                .labelsHidden()
+            }
+            Button(role: .destructive) {
+                profiles.removeAll { $0.id == profile.id }
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.plain).foregroundStyle(.red)
+        }
+        .padding(.vertical, 2)
     }
 }
 
