@@ -42,6 +42,9 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
     /// Upload image to Imgur and copy the link to the clipboard.
     case uploadToImgur
 
+    /// Upload image to an AWS S3 bucket (or S3-compatible service) and copy the link.
+    case uploadToS3
+
     // MARK: Metadata
 
     public var title: String {
@@ -55,6 +58,7 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .ocr:             return "Extract text (OCR)"
         case .pinToScreen:     return "Pin to screen"
         case .uploadToImgur:   return "Upload to Imgur"
+        case .uploadToS3:      return "Upload to Amazon S3"
         }
     }
 
@@ -68,7 +72,8 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .showNotification:return "Floating thumbnail in the corner"
         case .ocr:             return "Reads text from the image via Vision"
         case .pinToScreen:     return "Floating window that stays on top"
-        case .uploadToImgur:   return "Requires Imgur Client ID in Settings → Output"
+        case .uploadToImgur:   return "Requires Imgur Client ID in Settings → Pipeline"
+        case .uploadToS3:      return "Requires S3 credentials in Settings → Pipeline"
         }
     }
 

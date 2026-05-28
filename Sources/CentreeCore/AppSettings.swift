@@ -96,6 +96,16 @@ public extension Defaults.Keys {
     /// Imgur Client ID for anonymous image uploads.
     static let imgurClientID = Key<String>("imgurClientID", default: "")
 
+    // MARK: S3 Upload
+
+    static let s3Bucket            = Key<String>("s3Bucket",            default: "")
+    static let s3Region            = Key<String>("s3Region",            default: "us-east-1")
+    static let s3AccessKeyID       = Key<String>("s3AccessKeyID",       default: "")
+    static let s3SecretAccessKey   = Key<String>("s3SecretAccessKey",   default: "")
+    static let s3KeyPrefix         = Key<String>("s3KeyPrefix",         default: "")
+    static let s3PublicURLTemplate = Key<String>("s3PublicURLTemplate", default: "")
+    static let s3PathStyle         = Key<Bool>("s3PathStyle",           default: false)
+
     // MARK: Workflow Profiles
 
     /// User-defined capture workflow profiles.

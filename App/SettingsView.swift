@@ -157,8 +157,15 @@ private struct PipelineTab: View {
     @Default(.afterCaptureOptions) var options
     @Default(.ocrLanguages) var ocrLanguages
     @Default(.imgurClientID) var imgurClientID
+    @Default(.s3Bucket)            var s3Bucket
+    @Default(.s3Region)            var s3Region
+    @Default(.s3AccessKeyID)       var s3AccessKeyID
+    @Default(.s3SecretAccessKey)   var s3SecretAccessKey
+    @Default(.s3KeyPrefix)         var s3KeyPrefix
+    @Default(.s3PublicURLTemplate) var s3PublicURLTemplate
+    @Default(.s3PathStyle)         var s3PathStyle
 
-    private let outputTasks: [AfterCaptureOption]    = [.copyToClipboard, .saveToFile, .uploadToImgur]
+    private let outputTasks: [AfterCaptureOption]    = [.copyToClipboard, .saveToFile, .uploadToImgur, .uploadToS3]
     private let postSaveTasks: [AfterCaptureOption]  = [.revealInFinder, .copyFilePath, .openInViewer]
     private let notifyTasks: [AfterCaptureOption]    = [.showNotification]
     private let imageTasks: [AfterCaptureOption]     = [.ocr, .pinToScreen]
@@ -204,6 +211,39 @@ private struct PipelineTab: View {
                     Link("Get a free Client ID →", destination: URL(string: "https://api.imgur.com/oauth2/addclient")!)
                         .font(.caption)
                 } header: { Text("Imgur Settings") }
+            }
+
+            if options.contains(.uploadToS3) {
+                Section {
+                    LabeledContent("Bucket") {
+                        TextField("my-screenshots", text: $s3Bucket)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    LabeledContent("Region") {
+                        TextField("us-east-1", text: $s3Region)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    LabeledContent("Access Key ID") {
+                        TextField("AKIA…", text: $s3AccessKeyID)
+                            .textFieldStyle(.roundedBorder)
+                            .fontDesign(.monospaced)
+                    }
+                    LabeledContent("Secret Access Key") {
+                        SecureField("••••••••", text: $s3SecretAccessKey)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    LabeledContent("Key Prefix") {
+                        TextField("screenshots/  (optional)", text: $s3KeyPrefix)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    LabeledContent("Public URL") {
+                        TextField("https://cdn.example.com/  (optional)", text: $s3PublicURLTemplate)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    Toggle("Path-style endpoint", isOn: $s3PathStyle)
+                    Text("Needs s3:PutObject permission. Leave Public URL blank to use the default S3 HTTPS URL.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } header: { Text("Amazon S3 Settings") }
             }
 
             if options.contains(.ocr) {

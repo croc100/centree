@@ -284,6 +284,36 @@ final class CaptureCoordinator: ObservableObject {
                 }
             }
 
+            if optSet.contains(.uploadToS3) {
+                let bucket = Defaults[.s3Bucket]
+                let keyID  = Defaults[.s3AccessKeyID]
+                let secret = Defaults[.s3SecretAccessKey]
+                guard !bucket.isEmpty && !keyID.isEmpty && !secret.isEmpty else {
+                    showError(NSError(domain: "Centree", code: 0,
+                                     userInfo: [NSLocalizedDescriptionKey:
+                                        "S3 not configured. Fill in bucket, access key, and secret in Settings → Pipeline."]))
+                    return
+                }
+                let s3Config = S3Uploader.Config(
+                    bucket: bucket,
+                    region: Defaults[.s3Region].isEmpty ? "us-east-1" : Defaults[.s3Region],
+                    accessKeyID: keyID,
+                    secretAccessKey: secret,
+                    keyPrefix: Defaults[.s3KeyPrefix],
+                    publicURLTemplate: Defaults[.s3PublicURLTemplate],
+                    pathStyle: Defaults[.s3PathStyle]
+                )
+                Task {
+                    do {
+                        let url = try await S3Uploader(config: s3Config).upload(image)
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                    } catch {
+                        await MainActor.run { self.showError(error) }
+                    }
+                }
+            }
+
             if optSet.contains(.ocr) {
                 Task {
                     let langs = Defaults[.ocrLanguages]
