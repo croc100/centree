@@ -314,6 +314,39 @@ final class CaptureCoordinator: ObservableObject {
                 }
             }
 
+            if optSet.contains(.uploadCustomHTTP) {
+                let endpointURL = Defaults[.customHTTPURL]
+                guard !endpointURL.isEmpty else {
+                    showError(NSError(domain: "Centree", code: 0,
+                                     userInfo: [NSLocalizedDescriptionKey:
+                                        "Custom HTTP URL not configured. Add it in Settings → Pipeline."]))
+                    return
+                }
+                // Parse headers from "Key: Value" lines
+                let headersRaw = Defaults[.customHTTPHeadersRaw]
+                var headers: [String: String] = [:]
+                for line in headersRaw.components(separatedBy: "\n") {
+                    let parts = line.components(separatedBy: ":").map { $0.trimmingCharacters(in: .whitespaces) }
+                    if parts.count >= 2 { headers[parts[0]] = parts[1...].joined(separator: ":") }
+                }
+                let httpConfig = CustomHTTPUploader.Config(
+                    method: Defaults[.customHTTPMethod],
+                    url: endpointURL,
+                    fileFormField: Defaults[.customHTTPFileField],
+                    responseURLPath: Defaults[.customHTTPResponsePath],
+                    headers: headers
+                )
+                Task {
+                    do {
+                        let url = try await CustomHTTPUploader(config: httpConfig).upload(image)
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                    } catch {
+                        await MainActor.run { self.showError(error) }
+                    }
+                }
+            }
+
             if optSet.contains(.ocr) {
                 Task {
                     let langs = Defaults[.ocrLanguages]

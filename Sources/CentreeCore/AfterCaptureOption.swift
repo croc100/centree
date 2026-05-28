@@ -45,6 +45,9 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
     /// Upload image to an AWS S3 bucket (or S3-compatible service) and copy the link.
     case uploadToS3
 
+    /// POST/PUT image to any HTTP endpoint and copy the returned link.
+    case uploadCustomHTTP
+
     // MARK: Metadata
 
     public var title: String {
@@ -58,7 +61,8 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .ocr:             return "Extract text (OCR)"
         case .pinToScreen:     return "Pin to screen"
         case .uploadToImgur:   return "Upload to Imgur"
-        case .uploadToS3:      return "Upload to Amazon S3"
+        case .uploadToS3:        return "Upload to Amazon S3"
+        case .uploadCustomHTTP:  return "Upload via Custom HTTP"
         }
     }
 
@@ -73,7 +77,8 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .ocr:             return "Reads text from the image via Vision"
         case .pinToScreen:     return "Floating window that stays on top"
         case .uploadToImgur:   return "Requires Imgur Client ID in Settings → Pipeline"
-        case .uploadToS3:      return "Requires S3 credentials in Settings → Pipeline"
+        case .uploadToS3:       return "Requires S3 credentials in Settings → Pipeline"
+        case .uploadCustomHTTP: return "Configure URL, field name, and headers in Settings → Pipeline"
         }
     }
 

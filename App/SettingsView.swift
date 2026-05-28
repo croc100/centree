@@ -164,8 +164,14 @@ private struct PipelineTab: View {
     @Default(.s3KeyPrefix)         var s3KeyPrefix
     @Default(.s3PublicURLTemplate) var s3PublicURLTemplate
     @Default(.s3PathStyle)         var s3PathStyle
+    @Default(.customHTTPMethod)       var customHTTPMethod
+    @Default(.customHTTPURL)          var customHTTPURL
+    @Default(.customHTTPFileField)    var customHTTPFileField
+    @Default(.customHTTPResponsePath) var customHTTPResponsePath
+    @Default(.customHTTPHeadersRaw)   var customHTTPHeadersRaw
 
-    private let outputTasks: [AfterCaptureOption]    = [.copyToClipboard, .saveToFile, .uploadToImgur, .uploadToS3]
+    private let outputTasks: [AfterCaptureOption]    = [.copyToClipboard, .saveToFile,
+                                                        .uploadToImgur, .uploadToS3, .uploadCustomHTTP]
     private let postSaveTasks: [AfterCaptureOption]  = [.revealInFinder, .copyFilePath, .openInViewer]
     private let notifyTasks: [AfterCaptureOption]    = [.showNotification]
     private let imageTasks: [AfterCaptureOption]     = [.ocr, .pinToScreen]
@@ -244,6 +250,40 @@ private struct PipelineTab: View {
                     Text("Needs s3:PutObject permission. Leave Public URL blank to use the default S3 HTTPS URL.")
                         .font(.caption).foregroundStyle(.secondary)
                 } header: { Text("Amazon S3 Settings") }
+            }
+
+            if options.contains(.uploadCustomHTTP) {
+                Section {
+                    HStack(spacing: 8) {
+                        Picker("Method", selection: $customHTTPMethod) {
+                            Text("POST").tag("POST")
+                            Text("PUT").tag("PUT")
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(width: 100)
+                        TextField("https://example.com/upload", text: $customHTTPURL)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    LabeledContent("File field") {
+                        TextField("file", text: $customHTTPFileField)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    LabeledContent("Response path") {
+                        TextField("data.url  (empty = whole response)", text: $customHTTPResponsePath)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Headers  (one per line: \"Key: Value\")")
+                            .font(.subheadline)
+                        TextEditor(text: $customHTTPHeadersRaw)
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(minHeight: 60, maxHeight: 100)
+                            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color(nsColor: .separatorColor)))
+                    }
+                    Text("Leave File field empty to send a raw PNG body instead of multipart form-data.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } header: { Text("Custom HTTP Upload") }
             }
 
             if options.contains(.ocr) {

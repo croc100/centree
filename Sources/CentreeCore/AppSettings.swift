@@ -106,6 +106,15 @@ public extension Defaults.Keys {
     static let s3PublicURLTemplate = Key<String>("s3PublicURLTemplate", default: "")
     static let s3PathStyle         = Key<Bool>("s3PathStyle",           default: false)
 
+    // MARK: Custom HTTP Upload
+
+    static let customHTTPMethod          = Key<String>("customHTTPMethod",          default: "POST")
+    static let customHTTPURL             = Key<String>("customHTTPURL",             default: "")
+    static let customHTTPFileField       = Key<String>("customHTTPFileField",       default: "file")
+    static let customHTTPResponsePath    = Key<String>("customHTTPResponsePath",    default: "")
+    /// Newline-separated "Key: Value" pairs.
+    static let customHTTPHeadersRaw      = Key<String>("customHTTPHeadersRaw",      default: "")
+
     // MARK: Workflow Profiles
 
     /// User-defined capture workflow profiles.
