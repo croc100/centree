@@ -174,7 +174,7 @@ private struct PipelineTab: View {
                                                         .uploadToImgur, .uploadToS3, .uploadCustomHTTP]
     private let postSaveTasks: [AfterCaptureOption]  = [.revealInFinder, .copyFilePath, .openInViewer]
     private let notifyTasks: [AfterCaptureOption]    = [.showNotification]
-    private let imageTasks: [AfterCaptureOption]     = [.ocr, .pinToScreen]
+    private let imageTasks: [AfterCaptureOption]     = [.ocr, .autoRedactPII, .pinToScreen]
 
     var body: some View {
         Form {

@@ -34,6 +34,9 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
     /// Extract text from the captured image using Vision OCR.
     case ocr
 
+    /// Automatically detect and blur PII (emails, phone numbers, API keys, etc.).
+    case autoRedactPII
+
     /// Pin the captured image to the screen as a floating overlay.
     case pinToScreen
 
@@ -59,6 +62,7 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .openInViewer:    return "Open in Preview"
         case .showNotification:return "Show capture notification"
         case .ocr:             return "Extract text (OCR)"
+        case .autoRedactPII:   return "Auto-redact PII"
         case .pinToScreen:     return "Pin to screen"
         case .uploadToImgur:   return "Upload to Imgur"
         case .uploadToS3:        return "Upload to Amazon S3"
@@ -75,6 +79,7 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .openInViewer:    return "Opens file in the default viewer (Preview)"
         case .showNotification:return "Floating thumbnail in the corner"
         case .ocr:             return "Reads text from the image via Vision"
+        case .autoRedactPII:   return "Blurs emails, phone numbers, API keys, credit card numbers"
         case .pinToScreen:     return "Floating window that stays on top"
         case .uploadToImgur:   return "Requires Imgur Client ID in Settings → Pipeline"
         case .uploadToS3:       return "Requires S3 credentials in Settings → Pipeline"

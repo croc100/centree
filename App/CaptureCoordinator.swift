@@ -235,9 +235,16 @@ final class CaptureCoordinator: ObservableObject {
                 }
             }
 
+            // Build after-capture tasks (transform the image before saving/uploading)
+            var afterCaptureTasks: [any AfterCaptureTask] = []
+            if optSet.contains(.autoRedactPII) {
+                afterCaptureTasks.append(PIIRedactionTask())
+            }
+
             let screenshot = Screenshot(image: image, sourceRect: sourceRect, scaleFactor: scaleFactor)
             let ctx = try await pipeline.run(
                 preCapture: screenshot,
+                afterCapture: afterCaptureTasks,
                 outputs: outputs,
                 afterOutput: afterOutputs
             )
