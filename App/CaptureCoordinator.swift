@@ -29,6 +29,7 @@ final class CaptureCoordinator: ObservableObject {
     func captureSavedRegion(id: UUID)           { Task { await runSavedRegion(id: id)        } }
     func captureScroll()                        { Task { await runScrollCapture()            } }
     func captureDisplay(displayID: CGDirectDisplayID) { Task { await runDisplayCapture(displayID: displayID) } }
+    func openForEditing()                             { Task { await runEditorMode()                        } }
 
     // MARK: - Overlay flow
 
@@ -54,6 +55,34 @@ final class CaptureCoordinator: ObservableObject {
             await finalize(image: image, sourceRect: sourceRect, scaleFactor: scale)
 
         } catch { showError(error) }
+    }
+
+    // MARK: - Editor mode
+
+    private func runEditorMode() async {
+        // Show open panel on main thread
+        let result = await MainActor.run {
+            let panel = NSOpenPanel()
+            panel.title = "Open Image for Editing"
+            panel.allowedContentTypes = [.png, .jpeg, .tiff, .heic, .gif, .bmp]
+            panel.canChooseFiles = true; panel.canChooseDirectories = false
+            panel.allowsMultipleSelection = false
+            return panel.runModal() == .OK ? panel.url : nil
+        }
+        guard let url = result,
+              let nsImage = NSImage(contentsOf: url),
+              let cgImage = nsImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return }
+
+        // Detect if it's a @2x image by comparing NSImage.size vs cgImage pixels
+        let scale: CGFloat = {
+            let ptW = nsImage.size.width
+            let pxW = CGFloat(cgImage.width)
+            return pxW > ptW * 1.5 ? 2.0 : 1.0
+        }()
+
+        let editorResult = await overlay.showEditor(image: cgImage, scaleFactor: scale)
+        guard case .captured(let image, let sourceRect, let scaleFactor) = editorResult else { return }
+        await finalize(image: image, sourceRect: sourceRect, scaleFactor: scaleFactor)
     }
 
     // MARK: - Per-display capture

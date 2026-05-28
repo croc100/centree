@@ -130,7 +130,7 @@ private struct OutputTab: View {
             }
             Section {
                 TextField("Pattern", text: $pattern).fontDesign(.monospaced)
-                Text("Tokens: %year% %month% %day% %hour% %minute% %second% %counter% %uuid%")
+                Text("Date: %year% %yy% %month% %mon% %day% %hour% %h12% %minute% %second% %ms% %pm% %unix% %weekday% %weeknum%\nCounter: %counter% %ix% %ia%   Random: %rn% %ra% %rx% %guid% %uuid%\nSystem: %un% %cn% %app%   Image: %width% %height%")
                     .font(.caption).foregroundStyle(.secondary)
             } header: { Text("Filename Pattern") }
         }

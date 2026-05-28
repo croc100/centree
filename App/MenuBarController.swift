@@ -41,6 +41,7 @@ struct MenuBarMenuView: View {
 
         Divider()
 
+        Button("Open for Editing…") { coordinator.openForEditing() }
         Button("Color Picker") { ColorPickerPanel.shared.activate() }
 
         Button(autoCapture.isRunning ? "Stop Auto Capture" : "Start Auto Capture") {

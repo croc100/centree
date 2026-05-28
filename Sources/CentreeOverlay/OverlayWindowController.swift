@@ -36,6 +36,70 @@ public final class OverlayWindowController {
         }
     }
 
+    /// Open an existing image for annotation editing.
+    /// The overlay is presented as a regular (non-fullscreen) window.
+    /// The full image area is pre-selected so annotation tools work immediately.
+    public func showEditor(image: CGImage, scaleFactor: CGFloat = 1) async -> OverlayResult {
+        await withCheckedContinuation { cont in
+            self.continuation = cont
+            self.presentEditor(image: image, scaleFactor: scaleFactor)
+        }
+    }
+
+    // MARK: - Present (Editor)
+
+    private func presentEditor(image: CGImage, scaleFactor: CGFloat) {
+        let ptW = CGFloat(image.width)  / scaleFactor
+        let ptH = CGFloat(image.height) / scaleFactor
+
+        // Constrain editor window to 80% of the main screen
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let maxW = screen.visibleFrame.width  * 0.85
+        let maxH = screen.visibleFrame.height * 0.85
+        let fitScale = min(1.0, min(maxW / ptW, maxH / ptH))
+        let winW = (ptW * fitScale).rounded()
+        let winH = (ptH * fitScale).rounded()
+        let winOrigin = NSPoint(
+            x: screen.visibleFrame.midX - winW / 2,
+            y: screen.visibleFrame.midY - winH / 2
+        )
+        let winFrame = NSRect(origin: winOrigin, size: NSSize(width: winW, height: winH))
+
+        let window = NSWindow(
+            contentRect: winFrame,
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered, defer: false
+        )
+        window.title = "Edit Image — Centree"
+        window.isReleasedWhenClosed = false
+
+        viewModel = OverlayViewModel()
+        viewModel.onDone   = { [weak self] in self?.handleDone() }
+        viewModel.onCancel = { [weak self] in self?.finish(with: .cancelled) }
+
+        let view = OverlayView(backgroundImage: image, scaleFactor: scaleFactor)
+        view.delegate = self
+        view.viewModel = viewModel
+        view.frame = window.contentView!.bounds
+        view.autoresizingMask = [.width, .height]
+        window.contentView!.addSubview(view)
+        window.makeFirstResponder(view)
+
+        // Pre-select the entire image so annotation tools are immediately active
+        viewModel.selectionRect = NSRect(x: 0, y: 0, width: ptW, height: ptH)
+
+        // Add toolbar (editor always shows toolbar)
+        addToolbar(to: window, screen: screen)
+
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+
+        overlayViews.append(view)
+        editorWindow = window
+    }
+
+    private var editorWindow: NSWindow?
+
     // MARK: - Present
 
     private func present(backgrounds: [(frame: CGRect, image: CGImage)], scWindows: [SCWindow], windowPickerMode: Bool = false) {
@@ -72,7 +136,7 @@ public final class OverlayWindowController {
 
     // MARK: - Toolbar
 
-    private func addToolbar(to window: OverlayNSWindow, screen: NSScreen?) {
+    private func addToolbar(to window: NSWindow, screen: NSScreen?) {
         let safeTop: CGFloat = screen?.safeAreaInsets.top ?? 0
         let w = window.contentView!.bounds.width
         let h = window.contentView!.bounds.height
@@ -139,6 +203,8 @@ public final class OverlayWindowController {
     private func tearDown(result: OverlayResult) {
         windows.forEach { $0.orderOut(nil) }
         windows.removeAll()
+        editorWindow?.orderOut(nil)
+        editorWindow = nil
         overlayViews.removeAll()
         toolbarHostingView = nil
         NSCursor.arrow.set()
