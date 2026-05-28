@@ -1,0 +1,406 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 760" width="1280" height="760">
+  <defs>
+    <!-- Toolbar gradient -->
+    <linearGradient id="toolbar-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5f5f7" stop-opacity="0.97"/>
+      <stop offset="100%" stop-color="#ebebf0" stop-opacity="0.96"/>
+    </linearGradient>
+    <!-- Desktop background -->
+    <linearGradient id="desktop" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f0e17"/>
+      <stop offset="100%" stop-color="#1a1825"/>
+    </linearGradient>
+    <!-- Editor bg -->
+    <linearGradient id="editor-area" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e1d2f"/>
+      <stop offset="100%" stop-color="#1a1927"/>
+    </linearGradient>
+    <!-- Blur annotation filter -->
+    <filter id="blur-ann" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+    <!-- Selection glow -->
+    <filter id="sel-glow" x="-5%" y="-5%" width="110%" height="110%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Overlay mask: darken everything outside selection -->
+    <mask id="sel-mask">
+      <rect width="1280" height="760" fill="white"/>
+      <rect x="188" y="88" width="904" height="574" rx="0" fill="black"/>
+    </mask>
+    <!-- Done button gradient -->
+    <linearGradient id="done-btn" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#2D6A4F"/>
+      <stop offset="100%" stop-color="#1B4332"/>
+    </linearGradient>
+    <!-- Step circle gradient -->
+    <linearGradient id="step-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e74c3c"/>
+      <stop offset="100%" stop-color="#c0392b"/>
+    </linearGradient>
+  </defs>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- LAYER 1: Background desktop -->
+  <!-- ═══════════════════════════════════════════ -->
+  <rect width="1280" height="760" fill="url(#desktop)"/>
+
+  <!-- Wallpaper subtle shapes -->
+  <circle cx="100" cy="680" r="320" fill="none" stroke="#2d2a4a" stroke-width="90" opacity="0.25"/>
+  <circle cx="1200" cy="120" r="260" fill="none" stroke="#2a2846" stroke-width="70" opacity="0.2"/>
+  <circle cx="950" cy="750" r="180" fill="none" stroke="#1e1c38" stroke-width="60" opacity="0.3"/>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- LAYER 2: Simulated app window (frozen screen) -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <!-- Editor background -->
+  <rect x="0" y="44" width="1280" height="716" fill="url(#editor-area)"/>
+
+  <!-- File sidebar -->
+  <rect x="0" y="44" width="210" height="716" fill="#151422"/>
+
+  <!-- Sidebar header -->
+  <rect x="0" y="44" width="210" height="28" fill="#1a1928"/>
+  <text x="16" y="62" fill="#7a7899" font-size="10" font-family="system-ui" font-weight="600" letter-spacing="1">EXPLORER</text>
+
+  <!-- Sidebar file tree items -->
+  <g fill="#9d9bbd" font-size="12" font-family="ui-monospace,monospace">
+    <text x="22" y="96">📁 Sources</text>
+    <text x="30" y="116">📁 CentreeCapture</text>
+    <rect x="30" y="120" width="160" height="18" rx="3" fill="#2D6A4F" opacity="0.35"/>
+    <text x="38" y="133" fill="#c8f5d0">  Capturer.swift</text>
+    <text x="38" y="151" fill="#9d9bbd">  ScrollCapturer.swift</text>
+    <text x="38" y="169">  FrameCapture.swift</text>
+    <text x="30" y="188">📁 CentreeOverlay</text>
+    <text x="38" y="206">  OverlayView.swift</text>
+    <text x="38" y="224">  OverlayToolbarView.swift</text>
+    <text x="38" y="242">  OverlayViewModel.swift</text>
+    <text x="30" y="261">📁 CentreeCore</text>
+    <text x="30" y="280">📁 CentreePipeline</text>
+    <text x="22" y="299">📁 App</text>
+    <text x="30" y="318">  CaptureCoordinator.swift</text>
+    <text x="30" y="337">  MenuBarController.swift</text>
+    <text x="30" y="356">  SettingsView.swift</text>
+  </g>
+
+  <!-- Status bar at bottom -->
+  <rect x="0" y="736" width="1280" height="24" fill="#0e0d1c"/>
+  <text x="220" y="752" fill="#6a6888" font-size="11" font-family="system-ui">Swift  Ln 67, Col 28  Spaces: 4  UTF-8</text>
+  <text x="1140" y="752" fill="#2D6A4F" font-size="11" font-family="system-ui">⬤ Build Succeeded</text>
+
+  <!-- Editor tab bar -->
+  <rect x="210" y="44" width="1070" height="34" fill="#17162a"/>
+  <!-- Active tab -->
+  <rect x="210" y="44" width="200" height="34" fill="#1e1d2f"/>
+  <rect x="210" y="44" width="200" height="2" fill="#2D6A4F"/>
+  <text x="228" y="65" fill="#e0dff5" font-size="12" font-family="ui-monospace,monospace">Capturer.swift</text>
+  <text x="395" y="65" fill="#5a586a" font-size="14" font-family="system-ui">×</text>
+  <!-- Inactive tabs -->
+  <text x="428" y="65" fill="#5a5870" font-size="12" font-family="ui-monospace,monospace">OverlayView.swift</text>
+  <text x="640" y="65" fill="#5a5870" font-size="12" font-family="ui-monospace,monospace">ScrollCapturer.swift</text>
+
+  <!-- Code area -->
+  <rect x="210" y="78" width="1070" height="658" fill="#1e1d2f"/>
+
+  <!-- Line numbers -->
+  <g fill="#3d3b5a" font-size="12" font-family="ui-monospace,monospace" text-anchor="end">
+    <text x="248" y="104">60</text><text x="248" y="122">61</text>
+    <text x="248" y="140">62</text><text x="248" y="158">63</text>
+    <text x="248" y="176">64</text><text x="248" y="194">65</text>
+    <text x="248" y="212">66</text><text x="248" y="230">67</text>
+    <text x="248" y="248">68</text><text x="248" y="266">69</text>
+    <text x="248" y="284">70</text><text x="248" y="302">71</text>
+    <text x="248" y="320">72</text><text x="248" y="338">73</text>
+    <text x="248" y="356">74</text><text x="248" y="374">75</text>
+    <text x="248" y="392">76</text><text x="248" y="410">77</text>
+    <text x="248" y="428">78</text><text x="248" y="446">79</text>
+    <text x="248" y="464">80</text><text x="248" y="482">81</text>
+    <text x="248" y="500">82</text><text x="248" y="518">83</text>
+    <text x="248" y="536">84</text><text x="248" y="554">85</text>
+    <text x="248" y="572">86</text><text x="248" y="590">87</text>
+    <text x="248" y="608">88</text><text x="248" y="626">89</text>
+    <text x="248" y="644">90</text><text x="248" y="662">91</text>
+  </g>
+
+  <!-- Syntax-highlighted code (colored rectangles simulate code lines) -->
+  <!-- Line 60: comment -->
+  <text x="262" y="104" fill="#6272a4" font-size="12" font-family="ui-monospace,monospace">    // MARK: - Public API</text>
+  <!-- Line 61: blank -->
+  <!-- Line 62: func declaration -->
+  <text x="262" y="140" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">    <tspan fill="#ff79c6">public func</tspan> <tspan fill="#50fa7b">capture</tspan><tspan fill="#f8f8f2">(mode: </tspan><tspan fill="#8be9fd">CaptureMode</tspan><tspan fill="#f8f8f2">) </tspan><tspan fill="#ff79c6">async throws</tspan><tspan fill="#f8f8f2"> -&gt; </tspan><tspan fill="#8be9fd">Screenshot</tspan><tspan fill="#f8f8f2"> {</tspan></text>
+  <!-- Line 63: guard -->
+  <text x="262" y="158" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">guard await</tspan><tspan fill="#f8f8f2"> PermissionChecker.</tspan><tspan fill="#50fa7b">hasPermission</tspan><tspan fill="#f8f8f2">() </tspan><tspan fill="#ff79c6">else</tspan><tspan fill="#f8f8f2"> {</tspan></text>
+  <!-- Line 64: throw -->
+  <text x="262" y="176" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">            <tspan fill="#ff79c6">throw</tspan><tspan fill="#f8f8f2"> CaptureError.</tspan><tspan fill="#8be9fd">permissionDenied</tspan></text>
+  <!-- Line 65: } -->
+  <text x="262" y="194" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        }</text>
+  <!-- Line 66: switch -->
+  <text x="262" y="212" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">switch</tspan><tspan fill="#f8f8f2"> mode {</tspan></text>
+  <!-- Highlight: selected line -->
+  <rect x="258" y="220" width="980" height="18" fill="#2D6A4F" opacity="0.25"/>
+  <text x="262" y="230" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">case</tspan><tspan fill="#f8f8f2"> .</tspan><tspan fill="#8be9fd">region</tspan><tspan fill="#f8f8f2">(</tspan><tspan fill="#ff79c6">let</tspan><tspan fill="#f8f8f2"> rect):  </tspan><tspan fill="#ff79c6">return try await</tspan><tspan fill="#f8f8f2"> </tspan><tspan fill="#50fa7b">captureRegion</tspan><tspan fill="#f8f8f2">(rect)</tspan></text>
+  <text x="262" y="248" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">case</tspan><tspan fill="#f8f8f2"> .</tspan><tspan fill="#8be9fd">window</tspan><tspan fill="#f8f8f2">(</tspan><tspan fill="#ff79c6">let</tspan><tspan fill="#f8f8f2"> windowID):  </tspan><tspan fill="#ff79c6">return try await</tspan><tspan fill="#f8f8f2"> </tspan><tspan fill="#50fa7b">captureWindow</tspan><tspan fill="#f8f8f2">(windowID: windowID)</tspan></text>
+  <text x="262" y="266" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">case</tspan><tspan fill="#f8f8f2"> .</tspan><tspan fill="#8be9fd">fullScreen</tspan><tspan fill="#f8f8f2">(</tspan><tspan fill="#ff79c6">let</tspan><tspan fill="#f8f8f2"> displayID): </tspan><tspan fill="#ff79c6">return try await</tspan><tspan fill="#f8f8f2"> </tspan><tspan fill="#50fa7b">captureFullScreen</tspan><tspan fill="#f8f8f2">(displayID: displayID)</tspan></text>
+  <text x="262" y="284" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        }</text>
+  <text x="262" y="302" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">    }</text>
+  <text x="262" y="320" fill="#6272a4" font-size="12" font-family="ui-monospace,monospace">    // MARK: - Region</text>
+  <text x="262" y="356" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">    <tspan fill="#ff79c6">private func</tspan> <tspan fill="#50fa7b">captureRegion</tspan><tspan fill="#f8f8f2">(_ rect: </tspan><tspan fill="#8be9fd">CGRect</tspan><tspan fill="#f8f8f2">) </tspan><tspan fill="#ff79c6">async throws</tspan><tspan fill="#f8f8f2"> -&gt; </tspan><tspan fill="#8be9fd">Screenshot</tspan><tspan fill="#f8f8f2"> {</tspan></text>
+  <text x="262" y="374" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">let</tspan><tspan fill="#f8f8f2"> display = </tspan><tspan fill="#ff79c6">try await</tspan><tspan fill="#f8f8f2"> provider.</tspan><tspan fill="#50fa7b">display</tspan><tspan fill="#f8f8f2">(for: rect)</tspan></text>
+  <text x="262" y="392" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">let</tspan><tspan fill="#f8f8f2"> scale = display.</tspan><tspan fill="#8be9fd">backingScaleFactor</tspan></text>
+  <text x="262" y="410" fill="#6272a4" font-size="12" font-family="ui-monospace,monospace">        // Capture full display then crop — sidesteps SCK sourceRect ambiguity</text>
+  <text x="262" y="428" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">let</tspan><tspan fill="#f8f8f2"> fullImage = </tspan><tspan fill="#ff79c6">try await</tspan><tspan fill="#f8f8f2"> </tspan><tspan fill="#50fa7b">streamCapture</tspan><tspan fill="#f8f8f2">(display: display)</tspan></text>
+  <text x="262" y="446" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">let</tspan><tspan fill="#f8f8f2"> cropped = </tspan><tspan fill="#ff79c6">try</tspan><tspan fill="#f8f8f2"> </tspan><tspan fill="#50fa7b">crop</tspan><tspan fill="#f8f8f2">(image: fullImage, rect: rect, display: display, scale: scale)</tspan></text>
+  <text x="262" y="464" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">return</tspan><tspan fill="#f8f8f2"> Screenshot(image: cropped, sourceRect: rect, scaleFactor: scale)</tspan></text>
+  <text x="262" y="482" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">    }</text>
+  <text x="262" y="500" fill="#6272a4" font-size="12" font-family="ui-monospace,monospace">    // MARK: - Window</text>
+  <text x="262" y="536" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">    <tspan fill="#ff79c6">private func</tspan> <tspan fill="#50fa7b">captureWindow</tspan><tspan fill="#f8f8f2">(windowID: </tspan><tspan fill="#8be9fd">CGWindowID</tspan><tspan fill="#f8f8f2">) </tspan><tspan fill="#ff79c6">async throws</tspan><tspan fill="#f8f8f2"> -&gt; </tspan><tspan fill="#8be9fd">Screenshot</tspan><tspan fill="#f8f8f2"> {</tspan></text>
+  <text x="262" y="554" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">let</tspan><tspan fill="#f8f8f2"> window = </tspan><tspan fill="#ff79c6">try await</tspan><tspan fill="#f8f8f2"> provider.</tspan><tspan fill="#50fa7b">window</tspan><tspan fill="#f8f8f2">(withID: windowID)</tspan></text>
+  <text x="262" y="572" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">let</tspan><tspan fill="#f8f8f2"> filter = SCContentFilter(desktopIndependentWindow: window)</tspan></text>
+  <text x="262" y="590" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">let</tspan><tspan fill="#f8f8f2"> config = </tspan><tspan fill="#50fa7b">baseConfig</tspan><tspan fill="#f8f8f2">()</tspan></text>
+  <text x="262" y="608" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">let</tspan><tspan fill="#f8f8f2"> image = </tspan><tspan fill="#ff79c6">try await</tspan><tspan fill="#f8f8f2"> </tspan><tspan fill="#50fa7b">singleFrameCapture</tspan><tspan fill="#f8f8f2">(filter: filter, config: config)</tspan></text>
+  <text x="262" y="626" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">        <tspan fill="#ff79c6">return</tspan><tspan fill="#f8f8f2"> Screenshot(image: image, sourceRect: window.frame, scaleFactor: scale)</tspan></text>
+  <text x="262" y="644" fill="#f8f8f2" font-size="12" font-family="ui-monospace,monospace">    }</text>
+  <text x="262" y="662" fill="#6272a4" font-size="12" font-family="ui-monospace,monospace">    // MARK: - Full screen</text>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- LAYER 3: Centree freeze overlay -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <!-- Dark dim — everywhere except selection -->
+  <rect width="1280" height="760" fill="black" opacity="0.48" mask="url(#sel-mask)"/>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- LAYER 4: Selection rectangle -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <!-- Selection: outer glow -->
+  <rect x="186" y="86" width="908" height="578" rx="1" fill="none" stroke="white" stroke-width="1" opacity="0.2" filter="url(#sel-glow)"/>
+
+  <!-- Selection: main dashed border -->
+  <rect x="188" y="88" width="904" height="574" fill="none"
+        stroke="white" stroke-width="1.5"
+        stroke-dasharray="6 4" opacity="0.9"/>
+
+  <!-- Corner handles -->
+  <g fill="white" opacity="0.95">
+    <!-- TL --> <rect x="184" y="84" width="8" height="8"/>
+    <!-- TR --> <rect x="1088" y="84" width="8" height="8"/>
+    <!-- BL --> <rect x="184" y="658" width="8" height="8"/>
+    <!-- BR --> <rect x="1088" y="658" width="8" height="8"/>
+    <!-- Mid handles -->
+    <rect x="636" y="84" width="8" height="5"/>
+    <rect x="636" y="659" width="8" height="5"/>
+    <rect x="184" y="371" width="5" height="8"/>
+    <rect x="1091" y="371" width="5" height="8"/>
+  </g>
+
+  <!-- Size label -->
+  <rect x="188" y="670" width="96" height="20" rx="4" fill="black" opacity="0.7"/>
+  <text x="236" y="684" text-anchor="middle" fill="white" font-size="11" font-family="system-ui" opacity="0.9">904 × 574</text>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- LAYER 5: Annotations (inside selection) -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <!-- ① Annotation: Red rectangle highlighting the function signature -->
+  <rect x="258" y="130" width="840" height="22" rx="2" fill="none"
+        stroke="#ff4444" stroke-width="2" opacity="0.9"/>
+
+  <!-- ② Annotation: Arrow pointing to the switch statement -->
+  <!-- Arrow from right side pointing left to switch -->
+  <line x1="990" y1="212" x2="870" y2="212" stroke="#ff4444" stroke-width="2.5"
+        marker-end="url(#arrowhead)" opacity="0.95"/>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#ff4444"/>
+    </marker>
+  </defs>
+  <!-- Arrow label -->
+  <rect x="992" y="200" width="168" height="24" rx="4" fill="#ff4444" opacity="0.9"/>
+  <text x="1076" y="216" text-anchor="middle" fill="white" font-size="12" font-family="system-ui" font-weight="500">Dispatch point</text>
+
+  <!-- ③ Step number circle: ①  -->
+  <circle cx="313" cy="356" r="13" fill="url(#step-grad)"/>
+  <text x="313" y="361" text-anchor="middle" fill="white" font-size="13" font-family="system-ui" font-weight="700">1</text>
+
+  <!-- Step number circle: ② -->
+  <circle cx="313" cy="428" r="13" fill="url(#step-grad)"/>
+  <text x="313" y="433" text-anchor="middle" fill="white" font-size="13" font-family="system-ui" font-weight="700">2</text>
+
+  <!-- ④ Blur annotation: covering "backingScaleFactor" (sensitive-looking) -->
+  <rect x="440" y="384" width="258" height="16" fill="#8be9fd" opacity="0.15" filter="url(#blur-ann)"/>
+  <rect x="440" y="384" width="258" height="16" fill="#1e1d2f" opacity="0.55" filter="url(#blur-ann)"/>
+  <!-- Blur border hint -->
+  <rect x="440" y="384" width="258" height="16" fill="none" stroke="#8be9fd" stroke-width="1" opacity="0.4" stroke-dasharray="3 2"/>
+
+  <!-- ⑤ Highlight annotation: covering the comment line -->
+  <rect x="258" y="400" width="720" height="16" rx="2" fill="#f1fa8c" opacity="0.25"/>
+
+  <!-- ⑥ Text annotation -->
+  <rect x="620" y="540" width="230" height="26" rx="4" fill="#ff4444" opacity="0.9"/>
+  <text x="735" y="557" text-anchor="middle" fill="white" font-size="13" font-family="system-ui" font-weight="500">Full scroll capture ✓</text>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- LAYER 6: Toolbar (top 44px) -->
+  <!-- ═══════════════════════════════════════════ -->
+
+  <!-- Toolbar background -->
+  <rect width="1280" height="44" fill="url(#toolbar-bg)"/>
+  <!-- Toolbar bottom divider -->
+  <line x1="0" y1="44" x2="1280" y2="44" stroke="#c8c8d0" stroke-width="0.5"/>
+
+  <!-- Tool groups -->
+  <!-- Group 1: Region tools -->
+  <g opacity="0.75" font-size="9" font-family="system-ui" fill="#333" text-anchor="middle">
+    <!-- Region / capture -->
+    <rect x="4" y="7" width="30" height="30" rx="5" fill="none"/>
+    <rect x="4" y="7" width="30" height="30" rx="5" fill="#2D6A4F" opacity="0.15"/>
+    <text x="19" y="19" font-size="14">⊹</text><text x="19" y="31" font-size="8" fill="#2D6A4F" font-weight="600">Region</text>
+    <!-- Select -->
+    <rect x="36" y="7" width="30" height="30" rx="5" fill="none"/>
+    <text x="51" y="20" font-size="14">↖</text><text x="51" y="31">Select</text>
+    <!-- Crop -->
+    <rect x="68" y="7" width="30" height="30" rx="5" fill="none"/>
+    <text x="83" y="20" font-size="14">✂</text><text x="83" y="31">Crop</text>
+    <!-- Eraser -->
+    <rect x="100" y="7" width="30" height="30" rx="5" fill="none"/>
+    <text x="115" y="20" font-size="13">⌦</text><text x="115" y="31">Eraser</text>
+  </g>
+
+  <!-- Divider 1 -->
+  <line x1="136" y1="11" x2="136" y2="33" stroke="#c0c0c8" stroke-width="1" opacity="0.8"/>
+
+  <!-- Group 2: Shapes -->
+  <g opacity="0.7" font-size="9" font-family="system-ui" fill="#333" text-anchor="middle">
+    <rect x="140" y="7" width="30" height="30" rx="5" fill="none"/>
+    <rect x="143" y="12" width="24" height="18" rx="2" fill="none" stroke="#333" stroke-width="1.5"/>
+    <text x="155" y="31">Rect</text>
+
+    <rect x="172" y="7" width="30" height="30" rx="5" fill="none"/>
+    <ellipse cx="187" cy="21" rx="12" ry="8" fill="none" stroke="#333" stroke-width="1.5"/>
+    <text x="187" y="31">Oval</text>
+
+    <rect x="204" y="7" width="30" height="30" rx="5" fill="none"/>
+    <line x1="208" y1="28" x2="230" y2="12" stroke="#333" stroke-width="1.5"/>
+    <text x="219" y="31">Line</text>
+
+    <rect x="236" y="7" width="30" height="30" rx="5" fill="none"/>
+    <line x1="240" y1="26" x2="260" y2="12" stroke="#333" stroke-width="1.5" marker-end="url(#ah2)"/>
+    <defs><marker id="ah2" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto"><polygon points="0 0,6 2.5,0 5" fill="#333"/></marker></defs>
+    <text x="251" y="31">Arrow</text>
+
+    <rect x="268" y="7" width="30" height="30" rx="5" fill="none"/>
+    <path d="M272 26 Q280 14 286 18 Q292 10 296 22" fill="none" stroke="#333" stroke-width="1.5"/>
+    <text x="283" y="31">Pen</text>
+  </g>
+
+  <!-- Divider 2 -->
+  <line x1="302" y1="11" x2="302" y2="33" stroke="#c0c0c8" stroke-width="1" opacity="0.8"/>
+
+  <!-- Group 3: Text -->
+  <g opacity="0.7" font-size="9" font-family="system-ui" fill="#333" text-anchor="middle">
+    <rect x="306" y="7" width="30" height="30" rx="5" fill="none"/>
+    <text x="321" y="23" font-size="16" font-weight="600">T</text><text x="321" y="31">Text</text>
+
+    <rect x="338" y="7" width="30" height="30" rx="5" fill="none"/>
+    <circle cx="353" cy="20" r="9" fill="none" stroke="#333" stroke-width="1.5"/>
+    <text x="353" y="23" font-size="9" font-weight="700">1</text><text x="353" y="31">Step</text>
+
+    <rect x="370" y="7" width="30" height="30" rx="5" fill="none"/>
+    <path d="M374 23 Q374 12 385 12 Q396 12 396 20 Q396 28 385 28 L378 32 L382 28 Q374 28 374 23Z" fill="none" stroke="#333" stroke-width="1.3"/>
+    <text x="385" y="38">Balloon</text>
+
+    <rect x="402" y="7" width="30" height="30" rx="5" fill="none"/>
+    <text x="417" y="23" font-size="14">😊</text><text x="417" y="31">Emoji</text>
+  </g>
+
+  <!-- Divider 3 -->
+  <line x1="436" y1="11" x2="436" y2="33" stroke="#c0c0c8" stroke-width="1" opacity="0.8"/>
+
+  <!-- Group 4: Insert -->
+  <g opacity="0.7" font-size="9" font-family="system-ui" fill="#333" text-anchor="middle">
+    <rect x="440" y="7" width="30" height="30" rx="5" fill="none"/>
+    <text x="455" y="22" font-size="14">⌖</text><text x="455" y="31">Cursor</text>
+    <rect x="472" y="7" width="30" height="30" rx="5" fill="none"/>
+    <rect x="475" y="12" width="24" height="18" rx="2" fill="none" stroke="#333" stroke-width="1.3"/>
+    <text x="484" y="23" font-size="9">🖼</text><text x="487" y="31">Image</text>
+  </g>
+
+  <!-- Divider 4 -->
+  <line x1="507" y1="11" x2="507" y2="33" stroke="#c0c0c8" stroke-width="1" opacity="0.8"/>
+
+  <!-- Group 5: Effects -->
+  <g opacity="0.7" font-size="9" font-family="system-ui" fill="#333" text-anchor="middle">
+    <rect x="511" y="7" width="30" height="30" rx="5" fill="none"/>
+    <rect x="514" y="14" width="24" height="12" rx="2" fill="#f1fa8c" opacity="0.7" stroke="#c8a800" stroke-width="1"/>
+    <text x="526" y="31">Hilite</text>
+
+    <rect x="543" y="7" width="30" height="30" rx="5" fill="none"/>
+    <rect x="546" y="12" width="24" height="16" rx="2" fill="#ddd" filter="url(#blur-ann)" opacity="0.8"/>
+    <text x="558" y="31">Blur</text>
+
+    <rect x="575" y="7" width="30" height="30" rx="5" fill="none"/>
+    <g transform="translate(578,12)">
+      <rect width="5" height="5" fill="#aaa"/><rect x="6" width="5" height="5" fill="#888"/>
+      <rect x="12" width="5" height="5" fill="#aaa"/><rect y="6" width="5" height="5" fill="#888"/>
+      <rect x="6" y="6" width="5" height="5" fill="#aaa"/><rect x="12" y="6" width="5" height="5" fill="#888"/>
+    </g>
+    <text x="590" y="31">Pixel</text>
+
+    <rect x="607" y="7" width="30" height="30" rx="5" fill="none"/>
+    <rect x="610" y="12" width="24" height="16" rx="2" fill="#222" opacity="0.85"/>
+    <text x="622" y="31">Black</text>
+
+    <rect x="639" y="7" width="30" height="30" rx="5" fill="none"/>
+    <circle cx="654" cy="20" r="10" fill="none" stroke="#333" stroke-width="1.3" stroke-dasharray="3 2"/>
+    <circle cx="654" cy="20" r="5" fill="#333" opacity="0.5"/>
+    <text x="654" y="31">Spot</text>
+
+    <rect x="671" y="7" width="30" height="30" rx="5" fill="none"/>
+    <circle cx="686" cy="20" r="9" fill="none" stroke="#333" stroke-width="1.3"/>
+    <text x="686" y="23" font-size="9">⊕</text><text x="686" y="31">Magnify</text>
+  </g>
+
+  <!-- Divider 5 -->
+  <line x1="706" y1="11" x2="706" y2="33" stroke="#c0c0c8" stroke-width="1" opacity="0.8"/>
+
+  <!-- Tool options: color well + line width -->
+  <rect x="710" y="11" width="28" height="22" rx="3" fill="#e74c3c" stroke="#ccc" stroke-width="1"/>
+  <rect x="742" y="11" width="55" height="22" rx="3" fill="white" stroke="#ddd" stroke-width="1"/>
+  <text x="760" y="26" text-anchor="middle" fill="#333" font-size="11" font-family="system-ui">2 px  ↕</text>
+
+  <!-- Spacer area -->
+
+  <!-- Right side: Undo + Cancel + Done -->
+  <!-- Divider -->
+  <line x1="1112" y1="11" x2="1112" y2="33" stroke="#c0c0c8" stroke-width="1" opacity="0.8"/>
+
+  <!-- Undo -->
+  <g opacity="0.65">
+    <text x="1128" y="27" text-anchor="middle" fill="#333" font-size="18" font-family="system-ui">↩</text>
+  </g>
+
+  <line x1="1145" y1="11" x2="1145" y2="33" stroke="#c0c0c8" stroke-width="1" opacity="0.8"/>
+
+  <!-- Cancel -->
+  <text x="1178" y="26" text-anchor="middle" fill="#888" font-size="13" font-family="system-ui">Cancel</text>
+
+  <!-- Done button -->
+  <rect x="1209" y="9" width="62" height="26" rx="5" fill="url(#done-btn)"/>
+  <text x="1240" y="26" text-anchor="middle" fill="white" font-size="13" font-family="system-ui" font-weight="600">Done</text>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- LAYER 7: Centree branding watermark -->
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- Small Centree logo mark in bottom-right corner (outside selection) -->
+  <g opacity="0.55" transform="translate(1220, 690)">
+    <rect width="44" height="44" rx="10" fill="#1B4332"/>
+    <!-- Leaf block -->
+    <rect x="6" y="4" width="32" height="22" rx="1" fill="white"/>
+    <!-- Trunk -->
+    <rect x="17" y="26" width="10" height="14" rx="1" fill="white"/>
+  </g>
+  <text x="1240" y="746" text-anchor="middle" fill="#8888aa" font-size="11" font-family="system-ui" opacity="0.6">Centree</text>
+</svg>

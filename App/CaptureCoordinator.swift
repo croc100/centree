@@ -27,6 +27,7 @@ final class CaptureCoordinator: ObservableObject {
     func captureLastRegion()          { Task { await runLastRegion()            } }
     func captureWindowPicker()        { Task { await runWindowPicker()          } }
     func captureSavedRegion(id: UUID) { Task { await runSavedRegion(id: id)    } }
+    func captureScroll()              { Task { await runScrollCapture()         } }
 
     // MARK: - Overlay flow
 
@@ -91,6 +92,43 @@ final class CaptureCoordinator: ObservableObject {
             await applyDelay()
             let shot = try await capturer.capture(mode: .window(CGWindowID(window.windowID)))
             await finalize(image: shot.image, sourceRect: shot.sourceRect, scaleFactor: shot.scaleFactor)
+        } catch { showError(error) }
+    }
+
+    // MARK: - Scroll Capture
+
+    private func runScrollCapture() async {
+        // Accessibility permission is required for CGEvent posting.
+        guard AXIsProcessTrusted() else {
+            let alert = NSAlert()
+            alert.messageText = "Accessibility Permission Required"
+            alert.informativeText = """
+                Scroll Capture needs to post scroll events to the target window.
+                Please grant Accessibility access in System Settings → Privacy & Security → Accessibility, \
+                then try again.
+                """
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Open System Settings")
+            alert.addButton(withTitle: "Cancel")
+            if alert.runModal() == .alertFirstButtonReturn {
+                NSWorkspace.shared.open(
+                    URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+                )
+            }
+            return
+        }
+
+        do {
+            let (_, scWindows) = try await provider.fetchContent()
+            guard !scWindows.isEmpty else { return }
+
+            guard let window = await WindowPickerPanel.shared.pick(from: scWindows) else { return }
+
+            let scale = NSScreen.main?.backingScaleFactor ?? 2.0
+            let scroller = ScrollCapturer()
+            let image    = try await scroller.capture(window: window, scrollToTop: true)
+
+            await finalize(image: image, sourceRect: window.frame, scaleFactor: scale)
         } catch { showError(error) }
     }
 

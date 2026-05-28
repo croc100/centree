@@ -12,6 +12,7 @@ struct MenuBarMenuView: View {
         Button("Capture Region        ⌘⇧4") { coordinator.captureWithOverlay() }
         Button("Capture Full Screen   ⌘⇧3") { coordinator.captureFullScreen() }
         Button("Capture Window…")            { coordinator.captureWindowPicker() }
+        Button("Scroll Capture…")            { coordinator.captureScroll() }
 
         Button("Repeat Last Region") { coordinator.captureLastRegion() }
             .disabled(lastCaptureRect == nil)
