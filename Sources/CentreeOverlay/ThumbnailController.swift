@@ -11,6 +11,7 @@ public final class ThumbnailController {
     private var panel: NSPanel?
     private var dismissTask: Task<Void, Never>?
     private var savedURL: URL?
+    private weak var hostingView: ThumbnailHostingView?
 
     public init() {}
 
@@ -29,13 +30,14 @@ public final class ThumbnailController {
         )
 
         let p = makePanelPanel(frame: CGRect(origin: origin, size: thumbSize))
-        let hostingView = ThumbnailHostingView(image: image, size: thumbSize, onTap: { [weak self] in
+        let hv = ThumbnailHostingView(image: image, size: thumbSize, savedURL: url, onTap: { [weak self] in
             self?.openInPreview()
         })
-        hostingView.frame = p.contentView!.bounds
-        hostingView.autoresizingMask = [.width, .height]
-        p.contentView!.addSubview(hostingView)
+        hv.frame = p.contentView!.bounds
+        hv.autoresizingMask = [.width, .height]
+        p.contentView!.addSubview(hv)
         p.alphaValue = 0
+        hostingView = hv
 
         panel = p
         p.orderFront(nil)
@@ -102,13 +104,20 @@ public final class ThumbnailController {
 
 // MARK: - Hosting view (AppKit wrapper for the thumbnail image)
 
-private final class ThumbnailHostingView: NSView {
+private final class ThumbnailHostingView: NSView, NSDraggingSource {
     private let image: CGImage
     private let onTap: () -> Void
+    /// File URL set by ThumbnailController when the image has been saved to disk.
+    var savedURL: URL?
 
-    init(image: CGImage, size: CGSize, onTap: @escaping () -> Void) {
-        self.image = image
-        self.onTap = onTap
+    // Track whether the mouse moved enough to be a drag vs a tap.
+    private var mouseDownLocation: NSPoint = .zero
+    private static let dragThreshold: CGFloat = 4
+
+    init(image: CGImage, size: CGSize, savedURL: URL?, onTap: @escaping () -> Void) {
+        self.image    = image
+        self.savedURL = savedURL
+        self.onTap    = onTap
         super.init(frame: CGRect(origin: .zero, size: size))
         wantsLayer = true
         layer?.cornerRadius = 8
@@ -127,7 +136,45 @@ private final class ThumbnailHostingView: NSView {
         ctx.draw(image, in: bounds)
     }
 
+    // MARK: - Mouse
+
     override func mouseDown(with event: NSEvent) {
-        onTap()
+        mouseDownLocation = convert(event.locationInWindow, from: nil)
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        let cur = convert(event.locationInWindow, from: nil)
+        let dx = cur.x - mouseDownLocation.x
+        let dy = cur.y - mouseDownLocation.y
+        guard hypot(dx, dy) > Self.dragThreshold else { return }
+
+        // Prefer a real file drag (gives the receiver the actual PNG path).
+        // Fall back to an image-data drag (NSImage → TIFF on the pasteboard).
+        let writer: NSPasteboardWriting
+        if let url = savedURL {
+            writer = url as NSURL
+        } else {
+            writer = NSImage(cgImage: image, size: .zero)
+        }
+
+        let item = NSDraggingItem(pasteboardWriter: writer)
+        item.setDraggingFrame(bounds, contents: NSImage(cgImage: image, size: bounds.size))
+
+        beginDraggingSession(with: [item], event: event, source: self)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let cur = convert(event.locationInWindow, from: nil)
+        let dx = cur.x - mouseDownLocation.x
+        let dy = cur.y - mouseDownLocation.y
+        // Only fire tap if the mouse didn't travel far (i.e. not a drag).
+        if hypot(dx, dy) < Self.dragThreshold { onTap() }
+    }
+
+    // MARK: - NSDraggingSource
+
+    func draggingSession(_ session: NSDraggingSession,
+                         sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
+        context == .outsideApplication ? [.copy] : []
     }
 }
