@@ -13,6 +13,11 @@ public final class ThumbnailController {
     private var savedURL: URL?
     private weak var hostingView: ThumbnailHostingView?
 
+    // MARK: - Callbacks
+
+    /// Called when the user chooses "Open in Editor" from the thumbnail context menu.
+    public var onOpenInEditor: ((CGImage) -> Void)?
+
     public init() {}
 
     // MARK: - Public
@@ -30,9 +35,16 @@ public final class ThumbnailController {
         )
 
         let p = makePanelPanel(frame: CGRect(origin: origin, size: thumbSize))
-        let hv = ThumbnailHostingView(image: image, size: thumbSize, savedURL: url, onTap: { [weak self] in
-            self?.openInPreview()
-        })
+        let hv = ThumbnailHostingView(
+            image: image,
+            size: thumbSize,
+            savedURL: url,
+            onTap: { [weak self] in self?.openInPreview() },
+            onOpenInEditor: { [weak self] img in
+                self?.dismiss(animated: true)
+                self?.onOpenInEditor?(img)
+            }
+        )
         hv.frame = p.contentView!.bounds
         hv.autoresizingMask = [.width, .height]
         p.contentView!.addSubview(hv)
@@ -107,6 +119,7 @@ public final class ThumbnailController {
 private final class ThumbnailHostingView: NSView, NSDraggingSource {
     private let image: CGImage
     private let onTap: () -> Void
+    private let onOpenInEditor: (CGImage) -> Void
     /// File URL set by ThumbnailController when the image has been saved to disk.
     var savedURL: URL?
 
@@ -114,10 +127,13 @@ private final class ThumbnailHostingView: NSView, NSDraggingSource {
     private var mouseDownLocation: NSPoint = .zero
     private static let dragThreshold: CGFloat = 4
 
-    init(image: CGImage, size: CGSize, savedURL: URL?, onTap: @escaping () -> Void) {
-        self.image    = image
-        self.savedURL = savedURL
-        self.onTap    = onTap
+    init(image: CGImage, size: CGSize, savedURL: URL?,
+         onTap: @escaping () -> Void,
+         onOpenInEditor: @escaping (CGImage) -> Void) {
+        self.image          = image
+        self.savedURL       = savedURL
+        self.onTap          = onTap
+        self.onOpenInEditor = onOpenInEditor
         super.init(frame: CGRect(origin: .zero, size: size))
         wantsLayer = true
         layer?.cornerRadius = 8
@@ -169,6 +185,46 @@ private final class ThumbnailHostingView: NSView, NSDraggingSource {
         let dy = cur.y - mouseDownLocation.y
         // Only fire tap if the mouse didn't travel far (i.e. not a drag).
         if hypot(dx, dy) < Self.dragThreshold { onTap() }
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        let menu = NSMenu(title: "")
+        menu.addItem(withTitle: "Open in Preview",
+                     action: #selector(menuOpenPreview), keyEquivalent: "")
+            .target = self
+        menu.addItem(withTitle: "Open in Editor",
+                     action: #selector(menuOpenEditor), keyEquivalent: "")
+            .target = self
+        if let url = savedURL {
+            menu.addItem(withTitle: "Reveal in Finder",
+                         action: #selector(menuRevealInFinder), keyEquivalent: "")
+                .target = self
+            let copyPathItem = menu.addItem(withTitle: "Copy File Path",
+                                            action: #selector(menuCopyFilePath), keyEquivalent: "")
+            copyPathItem.target = self
+            copyPathItem.representedObject = url
+        }
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Copy Image",
+                     action: #selector(menuCopyImage), keyEquivalent: "")
+            .target = self
+        menu.popUp(positioning: nil, at: convert(event.locationInWindow, from: nil), in: self)
+    }
+
+    @objc private func menuOpenPreview()    { onTap() }
+    @objc private func menuOpenEditor()     { onOpenInEditor(image) }
+    @objc private func menuRevealInFinder() {
+        guard let url = savedURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+    @objc private func menuCopyFilePath() {
+        guard let url = savedURL else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url.path(percentEncoded: false), forType: .string)
+    }
+    @objc private func menuCopyImage() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([NSImage(cgImage: image, size: .zero)])
     }
 
     // MARK: - NSDraggingSource

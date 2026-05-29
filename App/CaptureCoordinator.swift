@@ -21,6 +21,15 @@ final class CaptureCoordinator: ObservableObject {
     private let overlay   = OverlayWindowController()
     private let thumbnail = ThumbnailController()
 
+    init() {
+        // Wire the thumbnail's "Open in Editor" callback so tapping it
+        // opens the editor without requiring the user to find the saved file.
+        thumbnail.onOpenInEditor = { [weak self] image in
+            guard let self else { return }
+            Task { await self.openEditorForImage(image) }
+        }
+    }
+
     // MARK: - Public actions
 
     func captureWithOverlay()                   { Task { await runOverlayCapture()           } }
@@ -79,6 +88,16 @@ final class CaptureCoordinator: ObservableObject {
     }
 
     // MARK: - Editor mode
+
+    /// Opens the editor pre-loaded with an already-captured CGImage.
+    /// Used by the thumbnail "Open in Editor" context-menu item.
+    private func openEditorForImage(_ image: CGImage) async {
+        // Guess scale: most captures are @2x; exact value isn't critical for editing.
+        let scale: CGFloat = 2.0
+        let editorResult = await overlay.showEditor(image: image, scaleFactor: scale)
+        guard case .captured(let edited, let sourceRect, let sf) = editorResult else { return }
+        await finalize(image: edited, sourceRect: sourceRect, scaleFactor: sf)
+    }
 
     private func runEditorMode() async {
         // Show open panel on main thread
