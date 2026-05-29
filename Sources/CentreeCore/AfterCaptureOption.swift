@@ -37,6 +37,9 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
     /// Automatically detect and blur PII (emails, phone numbers, API keys, etc.).
     case autoRedactPII
 
+    /// Stamp a configurable text watermark onto the image.
+    case watermark
+
     /// Pin the captured image to the screen as a floating overlay.
     case pinToScreen
 
@@ -63,6 +66,7 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .showNotification:return "Show capture notification"
         case .ocr:             return "Extract text (OCR)"
         case .autoRedactPII:   return "Auto-redact PII"
+        case .watermark:       return "Stamp watermark"
         case .pinToScreen:     return "Pin to screen"
         case .uploadToImgur:   return "Upload to Imgur"
         case .uploadToS3:        return "Upload to Amazon S3"
@@ -80,10 +84,19 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .showNotification:return "Floating thumbnail in the corner"
         case .ocr:             return "Reads text from the image via Vision"
         case .autoRedactPII:   return "Blurs emails, phone numbers, API keys, credit card numbers"
+        case .watermark:       return "Configure text, position and style in Settings → Pipeline"
         case .pinToScreen:     return "Floating window that stays on top"
         case .uploadToImgur:   return "Requires Imgur Client ID in Settings → Pipeline"
         case .uploadToS3:       return "Requires S3 credentials in Settings → Pipeline"
         case .uploadCustomHTTP: return "Configure URL, field name, and headers in Settings → Pipeline"
+        }
+    }
+
+    /// Tasks that transform the image (run before output tasks).
+    public var isImageTransform: Bool {
+        switch self {
+        case .autoRedactPII, .watermark: return true
+        default: return false
         }
     }
 

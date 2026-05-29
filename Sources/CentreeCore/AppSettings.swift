@@ -115,6 +115,21 @@ public extension Defaults.Keys {
     /// Newline-separated "Key: Value" pairs.
     static let customHTTPHeadersRaw      = Key<String>("customHTTPHeadersRaw",      default: "")
 
+    // MARK: Watermark
+
+    /// Text template for the watermark (supports NameParser tokens such as %year%, %app%, etc.).
+    static let watermarkText       = Key<String>("watermarkText",       default: "")
+    /// One of: topLeft, topCenter, topRight, middleLeft, center, middleRight, bottomLeft, bottomCenter, bottomRight
+    static let watermarkPosition   = Key<String>("watermarkPosition",   default: "bottomRight")
+    /// Point size of the watermark text (before scale-factor multiplication).
+    static let watermarkFontSize   = Key<Double>("watermarkFontSize",   default: 14.0)
+    /// Alpha 0–1 (0 = invisible, 1 = fully opaque).
+    static let watermarkOpacity    = Key<Double>("watermarkOpacity",    default: 0.65)
+    /// Hex colour string without '#', e.g. "FFFFFF" for white.
+    static let watermarkColorHex   = Key<String>("watermarkColorHex",   default: "FFFFFF")
+    /// When true a semi-transparent dark pill is drawn behind the text for legibility.
+    static let watermarkBackground = Key<Bool>("watermarkBackground",   default: false)
+
     // MARK: Workflow Profiles
 
     /// User-defined capture workflow profiles.

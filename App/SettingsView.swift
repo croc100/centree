@@ -169,12 +169,18 @@ private struct PipelineTab: View {
     @Default(.customHTTPFileField)    var customHTTPFileField
     @Default(.customHTTPResponsePath) var customHTTPResponsePath
     @Default(.customHTTPHeadersRaw)   var customHTTPHeadersRaw
+    @Default(.watermarkText)          var watermarkText
+    @Default(.watermarkPosition)      var watermarkPosition
+    @Default(.watermarkFontSize)      var watermarkFontSize
+    @Default(.watermarkOpacity)       var watermarkOpacity
+    @Default(.watermarkColorHex)      var watermarkColorHex
+    @Default(.watermarkBackground)    var watermarkBackground
 
     private let outputTasks: [AfterCaptureOption]    = [.copyToClipboard, .saveToFile,
                                                         .uploadToImgur, .uploadToS3, .uploadCustomHTTP]
     private let postSaveTasks: [AfterCaptureOption]  = [.revealInFinder, .copyFilePath, .openInViewer]
     private let notifyTasks: [AfterCaptureOption]    = [.showNotification]
-    private let imageTasks: [AfterCaptureOption]     = [.ocr, .autoRedactPII, .pinToScreen]
+    private let imageTasks: [AfterCaptureOption]     = [.ocr, .autoRedactPII, .watermark, .pinToScreen]
 
     var body: some View {
         Form {
@@ -303,6 +309,72 @@ private struct PipelineTab: View {
                         }
                     }
                 } header: { Text("OCR Settings") }
+            }
+
+            if options.contains(.watermark) {
+                Section {
+                    LabeledContent("Text") {
+                        TextField("%app% · %year%-%month%-%day%", text: $watermarkText)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    Text("Supports NameParser tokens: %year%, %month%, %day%, %hour%, %minute%, %app%, %width%, %height%, …")
+                        .font(.caption).foregroundStyle(.secondary)
+
+                    LabeledContent("Position") {
+                        Picker("", selection: $watermarkPosition) {
+                            Text("Top Left").tag("topLeft")
+                            Text("Top Center").tag("topCenter")
+                            Text("Top Right").tag("topRight")
+                            Text("Middle Left").tag("middleLeft")
+                            Text("Center").tag("center")
+                            Text("Middle Right").tag("middleRight")
+                            Text("Bottom Left").tag("bottomLeft")
+                            Text("Bottom Center").tag("bottomCenter")
+                            Text("Bottom Right").tag("bottomRight")
+                        }
+                        .labelsHidden()
+                    }
+
+                    LabeledContent("Font size") {
+                        HStack {
+                            Slider(value: $watermarkFontSize, in: 8...48, step: 1)
+                                .frame(width: 140)
+                            Text("\(Int(watermarkFontSize)) pt")
+                                .frame(width: 40, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    LabeledContent("Opacity") {
+                        HStack {
+                            Slider(value: $watermarkOpacity, in: 0.1...1.0, step: 0.05)
+                                .frame(width: 140)
+                            Text("\(Int(watermarkOpacity * 100))%")
+                                .frame(width: 40, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    LabeledContent("Colour") {
+                        HStack(spacing: 8) {
+                            // Hex text field — keeps the stored value as a plain string.
+                            TextField("FFFFFF", text: $watermarkColorHex)
+                                .textFieldStyle(.roundedBorder)
+                                .fontDesign(.monospaced)
+                                .frame(width: 80)
+                            // Live preview swatch.
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(hex: watermarkColorHex) ?? .white)
+                                .frame(width: 24, height: 24)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                                )
+                        }
+                    }
+
+                    Toggle("Dark background pill", isOn: $watermarkBackground)
+                } header: { Text("Watermark Settings") }
             }
         }
         .formStyle(.grouped)
@@ -734,6 +806,22 @@ private enum WorkflowOutputDestination: String, CaseIterable {
         case .s3:         return "externaldrive.connected.to.line.below"
         case .customHTTP: return "network"
         }
+    }
+}
+
+// MARK: - Key description
+
+// MARK: - SwiftUI Color hex helper
+
+private extension Color {
+    init?(hex: String) {
+        let h = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard h.count == 6, let rgb = UInt64(h, radix: 16) else { return nil }
+        self.init(
+            red:   Double((rgb >> 16) & 0xFF) / 255,
+            green: Double((rgb >>  8) & 0xFF) / 255,
+            blue:  Double( rgb        & 0xFF) / 255
+        )
     }
 }
 

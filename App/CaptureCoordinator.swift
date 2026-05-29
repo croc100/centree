@@ -269,11 +269,11 @@ final class CaptureCoordinator: ObservableObject {
                 }
             }
 
-            // Build after-capture tasks (transform the image before saving/uploading)
+            // Build after-capture tasks (transform the image before saving/uploading).
+            // Order matters: PII redaction before watermark so the mark is never blurred.
             var afterCaptureTasks: [any AfterCaptureTask] = []
-            if optSet.contains(.autoRedactPII) {
-                afterCaptureTasks.append(PIIRedactionTask())
-            }
+            if optSet.contains(.autoRedactPII) { afterCaptureTasks.append(PIIRedactionTask()) }
+            if optSet.contains(.watermark)     { afterCaptureTasks.append(WatermarkTask())    }
 
             let screenshot = Screenshot(image: image, sourceRect: sourceRect, scaleFactor: scaleFactor)
             let ctx = try await pipeline.run(
