@@ -670,8 +670,70 @@ private struct WorkflowRow: View {
 
                 Spacer()
             }
+
+            // ── Row 3: output destinations ──
+            if let i = idx {
+                HStack(spacing: 10) {
+                    Text("Output:")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 42, alignment: .trailing)
+
+                    ForEach(WorkflowOutputDestination.allCases, id: \.rawValue) { dest in
+                        let selected = profiles[i].outputDestinations.contains(dest.rawValue)
+                        Button {
+                            if selected {
+                                profiles[i].outputDestinations.removeAll { $0 == dest.rawValue }
+                            } else {
+                                profiles[i].outputDestinations.append(dest.rawValue)
+                            }
+                        } label: {
+                            Label(dest.label, systemImage: dest.icon)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 3)
+                                .background(selected ? Color.accentColor : Color.secondary.opacity(0.15),
+                                            in: RoundedRectangle(cornerRadius: 5))
+                                .foregroundStyle(selected ? .white : .primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Spacer()
+                }
+            }
         }
         .padding(.vertical, 4)
+    }
+}
+
+// MARK: - WorkflowOutputDestination
+
+/// Available per-workflow output destinations.
+/// The raw values match StoredWorkflowProfile.outputDestinations strings.
+private enum WorkflowOutputDestination: String, CaseIterable {
+    case clipboard  = "clipboard"
+    case localFile  = "localFile"
+    case imgur      = "imgur"
+    case s3         = "s3"
+    case customHTTP = "customHTTP"
+
+    var label: String {
+        switch self {
+        case .clipboard:  return "Clipboard"
+        case .localFile:  return "File"
+        case .imgur:      return "Imgur"
+        case .s3:         return "S3"
+        case .customHTTP: return "HTTP"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .clipboard:  return "doc.on.clipboard"
+        case .localFile:  return "folder"
+        case .imgur:      return "photo.on.rectangle"
+        case .s3:         return "externaldrive.connected.to.line.below"
+        case .customHTTP: return "network"
+        }
     }
 }
 

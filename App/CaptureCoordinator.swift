@@ -61,10 +61,15 @@ final class CaptureCoordinator: ObservableObject {
 
     // MARK: - Workflow Profile execution
 
+    /// When non-nil, `finalize` uses these output destinations instead of the global defaults.
+    /// Set immediately before each workflow capture and cleared at the start of `finalize`.
+    private var profileDestinationsOverride: [String]? = nil
+
     private func runWorkflowProfile(id: UUID) async {
         guard let profile = Defaults[.workflowProfiles].first(where: { $0.id == id }),
               profile.enabled else { return }
-        // Route to the appropriate capture mode; each already handles delay internally.
+        // Inject per-profile output destinations; cleared automatically in finalize.
+        profileDestinationsOverride = profile.outputDestinations.isEmpty ? nil : profile.outputDestinations
         switch profile.captureMode {
         case "region":     await runOverlayCapture()
         case "window":     await runWindowPicker()
@@ -209,9 +214,38 @@ final class CaptureCoordinator: ObservableObject {
     // MARK: - Shared finalize
 
     private func finalize(image: CGImage, sourceRect: CGRect, scaleFactor: CGFloat) async {
+        // Consume the per-profile override (if any) set by runWorkflowProfile.
+        let profileDestinations = profileDestinationsOverride
+        profileDestinationsOverride = nil
+
         do {
-            let options  = Defaults[.afterCaptureOptions]
-            let optSet   = Set(options)
+            // Compute effective option set. When a workflow profile provides explicit output
+            // destinations we replace only the "where to send" options and keep all other
+            // global options (notifications, OCR, PII, etc.) as configured.
+            let globalOptions = Defaults[.afterCaptureOptions]
+            let optSet: Set<AfterCaptureOption>
+            if let destinations = profileDestinations {
+                var effective = Set(globalOptions)
+                let outputOptions: Set<AfterCaptureOption> = [
+                    .copyToClipboard, .saveToFile, .uploadToImgur, .uploadToS3, .uploadCustomHTTP
+                ]
+                effective.subtract(outputOptions)
+                for d in destinations {
+                    switch d {
+                    case "clipboard":  effective.insert(.copyToClipboard)
+                    case "localFile":  effective.insert(.saveToFile)
+                    case "imgur":      effective.insert(.uploadToImgur)
+                    case "s3":         effective.insert(.uploadToS3)
+                    case "customHTTP": effective.insert(.uploadCustomHTTP)
+                    default: break
+                    }
+                }
+                optSet = effective
+            } else {
+                optSet = Set(globalOptions)
+            }
+            // Ordered options array (for tasks that iterate in order)
+            let options = AfterCaptureOption.allCases.filter { optSet.contains($0) }
             let directory = Defaults[.screenshotsDirectory]
 
             // Build ordered output tasks
