@@ -120,6 +120,8 @@ private struct HotkeysTab: View {
 private struct OutputTab: View {
     @Default(.screenshotsDirectory) var directory
     @Default(.filenamePattern)      var pattern
+    @Default(.outputFormat)         var outputFormat
+    @Default(.jpegQuality)          var jpegQuality
 
     var body: some View {
         Form {
@@ -131,10 +133,34 @@ private struct OutputTab: View {
                     Button("Choose…") { pickDirectory() }
                 }
             }
+
+            Section("File Format") {
+                Picker("Format", selection: $outputFormat) {
+                    Text("PNG  (lossless)").tag("png")
+                    Text("JPEG (smaller)").tag("jpeg")
+                    Text("TIFF (uncompressed)").tag("tiff")
+                    Text("WebP (modern)").tag("webp")
+                }
+                .pickerStyle(.radioGroup)
+                if outputFormat == "jpeg" {
+                    LabeledContent("Quality") {
+                        HStack {
+                            Slider(value: $jpegQuality, in: 0.5...1.0, step: 0.05)
+                                .frame(width: 150)
+                            Text("\(Int(jpegQuality * 100))%")
+                                .frame(width: 40, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+
             Section {
                 TextField("Pattern", text: $pattern).fontDesign(.monospaced)
                 Text("Date: %year% %yy% %month% %mon% %day% %hour% %h12% %minute% %second% %ms% %pm% %unix% %weekday% %weeknum%\nCounter: %counter% %ix% %ia%   Random: %rn% %ra% %rx% %guid% %uuid%\nSystem: %un% %cn% %app%   Image: %width% %height%")
                     .font(.caption).foregroundStyle(.secondary)
+                Text("The file extension is set automatically from the Format above.")
+                    .font(.caption).foregroundStyle(.tertiary)
             } header: { Text("Filename Pattern") }
         }
         .formStyle(.grouped)
@@ -182,7 +208,8 @@ private struct PipelineTab: View {
     @Default(.borderShadowBlur)       var borderShadowBlur
 
     private let outputTasks: [AfterCaptureOption]    = [.copyToClipboard, .saveToFile,
-                                                        .uploadToImgur, .uploadToS3, .uploadCustomHTTP]
+                                                        .uploadToImgur, .uploadToS3, .uploadCustomHTTP,
+                                                        .openUploadedURL]
     private let postSaveTasks: [AfterCaptureOption]  = [.revealInFinder, .copyFilePath, .openInViewer]
     private let notifyTasks: [AfterCaptureOption]    = [.showNotification]
     private let imageTasks: [AfterCaptureOption]     = [.ocr, .autoRedactPII, .watermark, .imageBorder, .print, .pinToScreen]

@@ -255,7 +255,10 @@ final class CaptureCoordinator: ObservableObject {
             }
             if optSet.contains(.saveToFile) {
                 createDirectoryIfNeeded(directory)
-                outputs.append(LocalFileOutput(directory: directory))
+                outputs.append(LocalFileOutput(
+                    directory: directory,
+                    format: Defaults[.outputFormat],
+                    jpegQuality: Defaults[.jpegQuality]))
             }
 
             // Build after-output tasks (same order as options list for predictability)
@@ -307,23 +310,22 @@ final class CaptureCoordinator: ObservableObject {
                 PinToScreenPanel.pin(image: image)
             }
 
-            // OCR (async — show result panel when ready)
+            // Upload tasks — all share the same completion handler.
+            let openAfterUpload = optSet.contains(.openUploadedURL)
+
             // Imgur upload
             if optSet.contains(.uploadToImgur) {
                 let clientID = Defaults[.imgurClientID]
                 guard !clientID.isEmpty else {
                     showError(NSError(domain: "Centree", code: 0,
-                                     userInfo: [NSLocalizedDescriptionKey: "Imgur Client ID not configured. Add it in Settings → Output."]))
+                                     userInfo: [NSLocalizedDescriptionKey: "Imgur Client ID not configured. Add it in Settings → Pipeline."]))
                     return
                 }
                 Task {
                     do {
                         let url = try await ImgurUploader(clientID: clientID).upload(image)
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(url.absoluteString, forType: .string)
-                    } catch {
-                        await MainActor.run { self.showError(error) }
-                    }
+                        handleUploadedURL(url, openInBrowser: openAfterUpload)
+                    } catch { await MainActor.run { self.showError(error) } }
                 }
             }
 
@@ -349,11 +351,8 @@ final class CaptureCoordinator: ObservableObject {
                 Task {
                     do {
                         let url = try await S3Uploader(config: s3Config).upload(image)
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(url.absoluteString, forType: .string)
-                    } catch {
-                        await MainActor.run { self.showError(error) }
-                    }
+                        handleUploadedURL(url, openInBrowser: openAfterUpload)
+                    } catch { await MainActor.run { self.showError(error) } }
                 }
             }
 
@@ -365,7 +364,6 @@ final class CaptureCoordinator: ObservableObject {
                                         "Custom HTTP URL not configured. Add it in Settings → Pipeline."]))
                     return
                 }
-                // Parse headers from "Key: Value" lines
                 let headersRaw = Defaults[.customHTTPHeadersRaw]
                 var headers: [String: String] = [:]
                 for line in headersRaw.components(separatedBy: "\n") {
@@ -382,11 +380,8 @@ final class CaptureCoordinator: ObservableObject {
                 Task {
                     do {
                         let url = try await CustomHTTPUploader(config: httpConfig).upload(image)
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(url.absoluteString, forType: .string)
-                    } catch {
-                        await MainActor.run { self.showError(error) }
-                    }
+                        handleUploadedURL(url, openInBrowser: openAfterUpload)
+                    } catch { await MainActor.run { self.showError(error) } }
                 }
             }
 
@@ -399,6 +394,16 @@ final class CaptureCoordinator: ObservableObject {
             }
 
         } catch { showError(error) }
+    }
+
+    // MARK: - Upload completion
+
+    /// Copies the URL to the clipboard and optionally opens it in the default browser.
+    @MainActor
+    private func handleUploadedURL(_ url: URL, openInBrowser: Bool) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url.absoluteString, forType: .string)
+        if openInBrowser { NSWorkspace.shared.open(url) }
     }
 
     // MARK: - Delay

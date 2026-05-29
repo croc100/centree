@@ -60,6 +60,9 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
     /// POST/PUT image to any HTTP endpoint and copy the returned link.
     case uploadCustomHTTP
 
+    /// After any upload completes, open the returned URL in the default browser.
+    case openUploadedURL
+
     // MARK: Metadata
 
     public var title: String {
@@ -77,8 +80,9 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .print:           return "Print"
         case .pinToScreen:     return "Pin to screen"
         case .uploadToImgur:   return "Upload to Imgur"
-        case .uploadToS3:        return "Upload to Amazon S3"
-        case .uploadCustomHTTP:  return "Upload via Custom HTTP"
+        case .uploadToS3:          return "Upload to Amazon S3"
+        case .uploadCustomHTTP:    return "Upload via Custom HTTP"
+        case .openUploadedURL:     return "Open uploaded URL in browser"
         }
     }
 
@@ -99,6 +103,7 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .uploadToImgur:   return "Requires Imgur Client ID in Settings → Pipeline"
         case .uploadToS3:       return "Requires S3 credentials in Settings → Pipeline"
         case .uploadCustomHTTP: return "Configure URL, field name, and headers in Settings → Pipeline"
+        case .openUploadedURL:  return "Automatically opens the link in your default browser"
         }
     }
 

@@ -130,6 +130,13 @@ public extension Defaults.Keys {
     /// When true a semi-transparent dark pill is drawn behind the text for legibility.
     static let watermarkBackground = Key<Bool>("watermarkBackground",   default: false)
 
+    // MARK: Output Format
+
+    /// File format for saved screenshots: "png", "jpeg", "tiff", "webp".
+    static let outputFormat  = Key<String>("outputFormat",  default: "png")
+    /// JPEG compression quality 0.0–1.0.
+    static let jpegQuality   = Key<Double>("jpegQuality",   default: 0.9)
+
     // MARK: Image Border / Shadow
 
     /// Width of the solid border in points (before scale-factor multiplication).
