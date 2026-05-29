@@ -130,6 +130,19 @@ public extension Defaults.Keys {
     /// When true a semi-transparent dark pill is drawn behind the text for legibility.
     static let watermarkBackground = Key<Bool>("watermarkBackground",   default: false)
 
+    // MARK: Image Border / Shadow
+
+    /// Width of the solid border in points (before scale-factor multiplication).
+    static let borderWidth      = Key<Double>("borderWidth",      default: 4.0)
+    /// Hex colour string for the border fill, e.g. "000000" for black.
+    static let borderColorHex   = Key<String>("borderColorHex",   default: "000000")
+    /// Alpha of the border colour.
+    static let borderOpacity    = Key<Double>("borderOpacity",    default: 1.0)
+    /// When true a soft drop shadow is added around the image.
+    static let borderShadow     = Key<Bool>("borderShadow",       default: false)
+    /// Blur radius of the drop shadow in pixels.
+    static let borderShadowBlur = Key<Double>("borderShadowBlur", default: 20.0)
+
     // MARK: Workflow Profiles
 
     /// User-defined capture workflow profiles.

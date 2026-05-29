@@ -175,12 +175,17 @@ private struct PipelineTab: View {
     @Default(.watermarkOpacity)       var watermarkOpacity
     @Default(.watermarkColorHex)      var watermarkColorHex
     @Default(.watermarkBackground)    var watermarkBackground
+    @Default(.borderWidth)            var borderWidth
+    @Default(.borderColorHex)         var borderColorHex
+    @Default(.borderOpacity)          var borderOpacity
+    @Default(.borderShadow)           var borderShadow
+    @Default(.borderShadowBlur)       var borderShadowBlur
 
     private let outputTasks: [AfterCaptureOption]    = [.copyToClipboard, .saveToFile,
                                                         .uploadToImgur, .uploadToS3, .uploadCustomHTTP]
     private let postSaveTasks: [AfterCaptureOption]  = [.revealInFinder, .copyFilePath, .openInViewer]
     private let notifyTasks: [AfterCaptureOption]    = [.showNotification]
-    private let imageTasks: [AfterCaptureOption]     = [.ocr, .autoRedactPII, .watermark, .pinToScreen]
+    private let imageTasks: [AfterCaptureOption]     = [.ocr, .autoRedactPII, .watermark, .imageBorder, .print, .pinToScreen]
 
     var body: some View {
         Form {
@@ -375,6 +380,60 @@ private struct PipelineTab: View {
 
                     Toggle("Dark background pill", isOn: $watermarkBackground)
                 } header: { Text("Watermark Settings") }
+            }
+
+            if options.contains(.imageBorder) {
+                Section {
+                    LabeledContent("Thickness") {
+                        HStack {
+                            Slider(value: $borderWidth, in: 1...40, step: 1)
+                                .frame(width: 140)
+                            Text("\(Int(borderWidth)) pt")
+                                .frame(width: 44, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    LabeledContent("Colour") {
+                        HStack(spacing: 8) {
+                            TextField("000000", text: $borderColorHex)
+                                .textFieldStyle(.roundedBorder)
+                                .fontDesign(.monospaced)
+                                .frame(width: 80)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color(hex: borderColorHex) ?? .black)
+                                .frame(width: 24, height: 24)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                                )
+                        }
+                    }
+
+                    LabeledContent("Opacity") {
+                        HStack {
+                            Slider(value: $borderOpacity, in: 0.1...1.0, step: 0.05)
+                                .frame(width: 140)
+                            Text("\(Int(borderOpacity * 100))%")
+                                .frame(width: 44, alignment: .trailing)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Toggle("Drop shadow", isOn: $borderShadow)
+
+                    if borderShadow {
+                        LabeledContent("Shadow blur") {
+                            HStack {
+                                Slider(value: $borderShadowBlur, in: 4...60, step: 2)
+                                    .frame(width: 140)
+                                Text("\(Int(borderShadowBlur)) px")
+                                    .frame(width: 44, alignment: .trailing)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                } header: { Text("Border / Shadow Settings") }
             }
         }
         .formStyle(.grouped)

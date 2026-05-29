@@ -40,6 +40,12 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
     /// Stamp a configurable text watermark onto the image.
     case watermark
 
+    /// Add a coloured border (and optional drop shadow) around the image.
+    case imageBorder
+
+    /// Print the captured image via the system print dialog.
+    case print
+
     /// Pin the captured image to the screen as a floating overlay.
     case pinToScreen
 
@@ -67,6 +73,8 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .ocr:             return "Extract text (OCR)"
         case .autoRedactPII:   return "Auto-redact PII"
         case .watermark:       return "Stamp watermark"
+        case .imageBorder:     return "Add border / shadow"
+        case .print:           return "Print"
         case .pinToScreen:     return "Pin to screen"
         case .uploadToImgur:   return "Upload to Imgur"
         case .uploadToS3:        return "Upload to Amazon S3"
@@ -85,6 +93,8 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
         case .ocr:             return "Reads text from the image via Vision"
         case .autoRedactPII:   return "Blurs emails, phone numbers, API keys, credit card numbers"
         case .watermark:       return "Configure text, position and style in Settings → Pipeline"
+        case .imageBorder:     return "Configure thickness, colour and shadow in Settings → Pipeline"
+        case .print:           return "Opens the system print dialog with the captured image"
         case .pinToScreen:     return "Floating window that stays on top"
         case .uploadToImgur:   return "Requires Imgur Client ID in Settings → Pipeline"
         case .uploadToS3:       return "Requires S3 credentials in Settings → Pipeline"
@@ -95,7 +105,7 @@ public enum AfterCaptureOption: String, CaseIterable, Codable, Sendable, Default
     /// Tasks that transform the image (run before output tasks).
     public var isImageTransform: Bool {
         switch self {
-        case .autoRedactPII, .watermark: return true
+        case .autoRedactPII, .watermark, .imageBorder: return true
         default: return false
         }
     }
