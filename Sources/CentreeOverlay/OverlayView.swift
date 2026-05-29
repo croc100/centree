@@ -347,20 +347,10 @@ final class OverlayView: NSView {
         ]
     }
 
-    /// Returns a bounding rect for rect-based annotations; nil for line/arrow/point-based.
+    /// Returns the annotation's axis-aligned bounding rect, or nil for line/arrow/point-based annotations.
+    /// Delegates to the `boundingRect` property each annotation subclass now owns.
     private func annotationBoundingRect(_ ann: Annotation) -> NSRect? {
-        switch ann {
-        case let a as RectAnnotation:         return a.rect
-        case let a as EllipseAnnotation:      return a.rect
-        case let a as HighlightAnnotation:    return a.rect
-        case let a as BlurAnnotation:         return a.rect
-        case let a as PixelateAnnotation:     return a.rect
-        case let a as BlackoutAnnotation:     return a.rect
-        case let a as SpeechBalloonAnnotation:return a.rect
-        case let a as SpotlightAnnotation:    return a.rect
-        case let a as MagnifyAnnotation:      return a.rect
-        default: return nil
-        }
+        ann.boundingRect
     }
 
     private func drawMultiSelectHighlight(for ann: Annotation, in ctx: CGContext) {
@@ -510,18 +500,7 @@ final class OverlayView: NSView {
             }
             return NSRect(x: x, y: y, width: max(8, w), height: max(8, h))
         }
-        switch ann {
-        case let a as RectAnnotation:         a.rect = resized(a.rect)
-        case let a as EllipseAnnotation:      a.rect = resized(a.rect)
-        case let a as HighlightAnnotation:    a.rect = resized(a.rect)
-        case let a as BlurAnnotation:         a.rect = resized(a.rect)
-        case let a as PixelateAnnotation:     a.rect = resized(a.rect)
-        case let a as BlackoutAnnotation:     a.rect = resized(a.rect)
-        case let a as SpeechBalloonAnnotation:a.rect = resized(a.rect)
-        case let a as SpotlightAnnotation:    a.rect = resized(a.rect)
-        case let a as MagnifyAnnotation:      a.rect = resized(a.rect)
-        default: break
-        }
+        if let r = ann as? RectResizable { r.rect = resized(r.rect) }
     }
 
     private func applyLineResize(ann: Annotation, endpointIdx: Int, dx: CGFloat, dy: CGFloat) {
@@ -1095,27 +1074,37 @@ final class OverlayView: NSView {
     }
 
     private func moveAnnotation(_ ann: Annotation, dx: CGFloat, dy: CGFloat) {
+        // Rect-based annotations — use the RectResizable protocol to avoid a type switch.
+        if let r = ann as? RectResizable { r.rect = r.rect.offsetBy(dx: dx, dy: dy); return }
+        // Remaining annotation types that store custom geometry.
         switch ann {
-        case let r as RectAnnotation:      r.rect   = r.rect.offsetBy(dx: dx, dy: dy)
-        case let e as EllipseAnnotation:   e.rect   = e.rect.offsetBy(dx: dx, dy: dy)
-        case let a as ArrowAnnotation:     a.start  = .init(x: a.start.x+dx, y: a.start.y+dy); a.end = .init(x: a.end.x+dx, y: a.end.y+dy)
-        case let l as LineAnnotation:      l.start  = .init(x: l.start.x+dx, y: l.start.y+dy); l.end = .init(x: l.end.x+dx, y: l.end.y+dy)
-        case let ru as RulerAnnotation:    ru.start = .init(x: ru.start.x+dx, y: ru.start.y+dy); ru.end = .init(x: ru.end.x+dx, y: ru.end.y+dy)
-        case let t as TextAnnotation:           t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
-        case let t as TextOutlineAnnotation:    t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
-        case let t as TextBackgroundAnnotation: t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
-        case let h as HighlightAnnotation: h.rect   = h.rect.offsetBy(dx: dx, dy: dy)
-        case let p as PenAnnotation:       p.points = p.points.map { .init(x: $0.x+dx, y: $0.y+dy) }
-        case let s as StepAnnotation:      s.center = .init(x: s.center.x+dx, y: s.center.y+dy)
-        case let b as BlurAnnotation:           b.rect = b.rect.offsetBy(dx: dx, dy: dy)
-        case let x as PixelateAnnotation:       x.rect = x.rect.offsetBy(dx: dx, dy: dy)
-        case let k as BlackoutAnnotation:       k.rect = k.rect.offsetBy(dx: dx, dy: dy)
-        case let sb as SpeechBalloonAnnotation: sb.rect = sb.rect.offsetBy(dx: dx, dy: dy)
-        case let sp as SpotlightAnnotation:     sp.rect = sp.rect.offsetBy(dx: dx, dy: dy)
-        case let m as MagnifyAnnotation:        m.rect  = m.rect.offsetBy(dx: dx, dy: dy)
-        case let em as EmojiAnnotation:         em.origin = .init(x: em.origin.x+dx, y: em.origin.y+dy)
-        case let cu as CursorAnnotation:        cu.origin = .init(x: cu.origin.x+dx, y: cu.origin.y+dy)
-        case let im as ImageAnnotation:         im.origin = .init(x: im.origin.x+dx, y: im.origin.y+dy)
+        case let a as ArrowAnnotation:
+            a.start = .init(x: a.start.x+dx, y: a.start.y+dy)
+            a.end   = .init(x: a.end.x+dx,   y: a.end.y+dy)
+        case let l as LineAnnotation:
+            l.start = .init(x: l.start.x+dx, y: l.start.y+dy)
+            l.end   = .init(x: l.end.x+dx,   y: l.end.y+dy)
+        case let ru as RulerAnnotation:
+            ru.start = .init(x: ru.start.x+dx, y: ru.start.y+dy)
+            ru.end   = .init(x: ru.end.x+dx,   y: ru.end.y+dy)
+        case let t as TextAnnotation:
+            t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
+        case let t as TextOutlineAnnotation:
+            t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
+        case let t as TextBackgroundAnnotation:
+            t.origin = .init(x: t.origin.x+dx, y: t.origin.y+dy)
+        case let p as PenAnnotation:
+            p.points = p.points.map { .init(x: $0.x+dx, y: $0.y+dy) }
+        case let fa as FreehandArrowAnnotation:
+            fa.points = fa.points.map { .init(x: $0.x+dx, y: $0.y+dy) }
+        case let s as StepAnnotation:
+            s.center = .init(x: s.center.x+dx, y: s.center.y+dy)
+        case let em as EmojiAnnotation:
+            em.origin = .init(x: em.origin.x+dx, y: em.origin.y+dy)
+        case let cu as CursorAnnotation:
+            cu.origin = .init(x: cu.origin.x+dx, y: cu.origin.y+dy)
+        case let im as ImageAnnotation:
+            im.origin = .init(x: im.origin.x+dx, y: im.origin.y+dy)
         default: break
         }
     }

@@ -1,5 +1,12 @@
 import AppKit
 
+// MARK: - RectResizable
+
+/// Annotations that store a single `rect` and can be resized via handle drag.
+protocol RectResizable: AnyObject {
+    var rect: NSRect { get set }
+}
+
 // MARK: - Tool
 
 public enum AnnotationTool: String, CaseIterable {
@@ -80,7 +87,7 @@ class Annotation: NSObject {
 
 // MARK: - Rectangle
 
-final class RectAnnotation: Annotation {
+final class RectAnnotation: Annotation, RectResizable {
     var rect: NSRect
     override var boundingRect: NSRect? { rect }
 
@@ -104,7 +111,7 @@ final class RectAnnotation: Annotation {
 
 // MARK: - Ellipse
 
-final class EllipseAnnotation: Annotation {
+final class EllipseAnnotation: Annotation, RectResizable {
     var rect: NSRect
     override var boundingRect: NSRect? { rect }
 
@@ -287,6 +294,10 @@ final class TextOutlineAnnotation: Annotation {
          .strokeColor: outlineColor,
          .strokeWidth: -3.0]   // negative = fill AND stroke
     }
+    override var boundingRect: NSRect? {
+        let sz = (text as NSString).size(withAttributes: attrs)
+        return NSRect(origin: origin, size: sz)
+    }
 
     override func draw(in _: NSRect) {
         guard !text.isEmpty else { return }
@@ -316,6 +327,12 @@ final class TextBackgroundAnnotation: Annotation {
     private var attrs: [NSAttributedString.Key: Any] {
         [.font: NSFont.systemFont(ofSize: fontSize, weight: .semibold), .foregroundColor: color]
     }
+    override var boundingRect: NSRect? {
+        let sz = (text as NSString).size(withAttributes: attrs)
+        let pad: CGFloat = 4
+        return NSRect(x: origin.x - pad, y: origin.y - pad / 2,
+                      width: sz.width + pad * 2, height: sz.height + pad)
+    }
 
     override func draw(in _: NSRect) {
         guard !text.isEmpty else { return }
@@ -336,7 +353,7 @@ final class TextBackgroundAnnotation: Annotation {
 
 // MARK: - Highlight
 
-final class HighlightAnnotation: Annotation {
+final class HighlightAnnotation: Annotation, RectResizable {
     var rect: NSRect
     override var boundingRect: NSRect? { rect }
     /// Opacity of the highlight fill (0.1 – 0.85). Default 0.35 matches ShareX.
@@ -436,6 +453,10 @@ final class StepAnnotation: Annotation {
     /// Optional leader line endpoint (set by drag after click-to-place).
     var leaderEnd: NSPoint?
     private let r: CGFloat = 12
+    override var boundingRect: NSRect? {
+        NSRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2)
+    }
+    override var rotationCenter: NSPoint { center }
 
     init(center: NSPoint, number: Int, color: NSColor) {
         self.center = center; self.number = number
@@ -479,7 +500,7 @@ final class StepAnnotation: Annotation {
 
 // MARK: - Blackout
 
-final class BlackoutAnnotation: Annotation {
+final class BlackoutAnnotation: Annotation, RectResizable {
     var rect: NSRect
     override var boundingRect: NSRect? { rect }
 
@@ -498,10 +519,11 @@ final class BlackoutAnnotation: Annotation {
 
 // MARK: - Blur (CoreImage rendering handled by canvas)
 
-final class BlurAnnotation: Annotation {
+final class BlurAnnotation: Annotation, RectResizable {
     var rect: NSRect
     var radius: CGFloat
     override var isRotatable: Bool { false }
+    override var boundingRect: NSRect? { rect }
 
     init(rect: NSRect, radius: CGFloat = 20) {
         self.rect = rect; self.radius = radius
@@ -519,10 +541,11 @@ final class BlurAnnotation: Annotation {
 
 // MARK: - Pixelate (CoreImage rendering handled by canvas)
 
-final class PixelateAnnotation: Annotation {
+final class PixelateAnnotation: Annotation, RectResizable {
     var rect: NSRect
     var pixelSize: CGFloat
     override var isRotatable: Bool { false }
+    override var boundingRect: NSRect? { rect }
 
     init(rect: NSRect, pixelSize: CGFloat = 12) {
         self.rect = rect; self.pixelSize = pixelSize
@@ -539,7 +562,7 @@ final class PixelateAnnotation: Annotation {
 
 // MARK: - Speech Balloon
 
-final class SpeechBalloonAnnotation: Annotation {
+final class SpeechBalloonAnnotation: Annotation, RectResizable {
     var rect: NSRect
     override var boundingRect: NSRect? { rect }
     var text: String
@@ -595,9 +618,10 @@ final class SpeechBalloonAnnotation: Annotation {
 // Rendering is handled at the canvas level (unified dark overlay with holes).
 // draw() is intentionally empty.
 
-final class SpotlightAnnotation: Annotation {
+final class SpotlightAnnotation: Annotation, RectResizable {
     var rect: NSRect
     override var isRotatable: Bool { false }
+    override var boundingRect: NSRect? { rect }
 
     init(rect: NSRect, color: NSColor = .white, lineWidth: CGFloat = 2) {
         self.rect = rect
@@ -612,9 +636,10 @@ final class SpotlightAnnotation: Annotation {
 // MARK: - Magnify (Loupe)
 // Actual pixel content is drawn by OverlayView / renderFinalImage (needs base image).
 
-final class MagnifyAnnotation: Annotation {
+final class MagnifyAnnotation: Annotation, RectResizable {
     var rect: NSRect
     override var isRotatable: Bool { false }   // pixel-space content; rotation is disorienting
+    override var boundingRect: NSRect? { rect }
     var scale: CGFloat   // 2 = 2× zoom
 
     init(rect: NSRect, scale: CGFloat = 2, color: NSColor, lineWidth: CGFloat) {
