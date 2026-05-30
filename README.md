@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="Resources/logo.svg" width="128" alt="Reticle" />
+  <img src="Resources/logo.jpg" width="128" alt="Reticle" />
 </p>
 
 <h1 align="center">Reticle</h1>
