@@ -176,7 +176,7 @@ ShareX is the undisputed best screenshot tool — on Windows. Reticle aims for *
 > Signed DMG and Homebrew coming with v1.0. Build from source until then.
 
 ```bash
-git clone https://github.com/croc100/reticle.git
+git clone https://github.com/croc100/Reticle.git
 cd reticle
 swift build -c release
 # Or open Package.swift in Xcode → select ReticleApp scheme → Run
