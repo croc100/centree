@@ -66,3 +66,8 @@ GoogleService-Info.plist
 
 # ── Reference code (not part of the project) ─────────────────────────────────
 ShareX-develop/
+
+# ── Site (Astro) ──────────────────────────────────────────────────────────────
+site/node_modules/
+site/dist/
+site/.astro/

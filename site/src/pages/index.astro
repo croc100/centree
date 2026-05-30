@@ -1,0 +1,299 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+
+const tools = [
+  { name: 'Rectangle / Ellipse', icon: '▭', note: 'Solid / dashed / dotted stroke' },
+  { name: 'Line / Arrow', icon: '↗', note: '45° angle snap with Shift' },
+  { name: 'Freehand Pen', icon: '✏️', note: 'Smooth cardinal spline' },
+  { name: 'Text', icon: 'T', note: 'Outline & background variants' },
+  { name: 'Step Numbers', icon: '①', note: 'Auto-increments, drag to add leader' },
+  { name: 'Speech Balloon', icon: '💬', note: 'Click-through text input' },
+  { name: 'Highlight', icon: '🖍', note: 'Fluorescent yellow, adjustable opacity' },
+  { name: 'Blur (Gaussian)', icon: '◉', note: 'Live preview, edge-accurate' },
+  { name: 'Pixelate', icon: '⊞', note: 'Live preview' },
+  { name: 'Spotlight', icon: '◎', note: 'Dark overlay with circular reveal' },
+  { name: 'Magnify / Loupe', icon: '🔍', note: 'Circular magnifier, configurable scale' },
+  { name: 'Emoji / Sticker', icon: '😄', note: '' },
+  { name: 'Blackout', icon: '■', note: '' },
+  { name: 'Ruler', icon: '📏', note: 'With scale readout' },
+  { name: 'Crop', icon: '⊡', note: 'Non-destructive selection crop' },
+  { name: 'Eraser', icon: '⌫', note: 'Trims pen strokes point-by-point' },
+  { name: 'Select / Move', icon: '⊹', note: 'Rotate, resize, multi-select' },
+  { name: 'Image Insert', icon: '🖼', note: '' },
+  { name: 'Mouse Cursor', icon: '↖', note: '' },
+  { name: 'Freehand Arrow', icon: '↜', note: '' },
+  { name: 'Freehand Region', icon: '⬡', note: 'Lasso selection' },
+];
+
+const captures = [
+  ['Region capture', '✅'],
+  ['Full-screen capture', '✅'],
+  ['Per-monitor capture', '✅'],
+  ['Window capture (click-to-pick)', '✅'],
+  ['Scrolling screenshot', '✅'],
+  ['Last region repeat', '✅'],
+  ['Saved regions', '✅'],
+  ['Auto capture (interval timer)', '✅'],
+  ['Capture delay (countdown)', '✅'],
+];
+
+const afterCapture = [
+  ['Copy to clipboard', '✅'],
+  ['Save to file', '✅'],
+  ['Desktop notification', '✅'],
+  ['OCR — extract text via Vision', '✅'],
+  ['Pin to screen (floating overlay)', '✅'],
+  ['Open in viewer', '✅'],
+  ['Reveal in Finder', '✅'],
+];
+
+const uploads = [
+  ['Imgur', '✅'],
+  ['Amazon S3 / Backblaze B2 / Cloudflare R2', '✅'],
+  ['FTP / SFTP', '✅'],
+  ['Custom HTTP uploader (JSON-defined)', '✅'],
+  ['Google Drive / Dropbox', '🔜'],
+  ['URL shortener', '🔜'],
+];
+
+const compare = [
+  { feature: 'Price', reticle: 'Free', cleanshot: '$29', shottr: 'Free', snagit: '$62/yr', flameshot: 'Free' },
+  { feature: 'Open source', reticle: '✅', cleanshot: '❌', shottr: '❌', snagit: '❌', flameshot: '✅' },
+  { feature: 'ShareX-style annotation', reticle: '✅', cleanshot: '❌', shottr: '❌', snagit: 'partial', flameshot: '❌' },
+  { feature: 'Sticky tool mode', reticle: '✅', cleanshot: '❌', shottr: '❌', snagit: '✅', flameshot: '✅' },
+  { feature: 'Live blur / pixelate', reticle: '✅', cleanshot: '✅', shottr: '✅', snagit: '✅', flameshot: '✅' },
+  { feature: 'Line style (solid/dashed/dotted)', reticle: '✅', cleanshot: '❌', shottr: '❌', snagit: '✅', flameshot: '❌' },
+  { feature: 'Scrolling screenshot', reticle: '✅', cleanshot: '✅', shottr: '❌', snagit: '✅', flameshot: '❌' },
+  { feature: 'Window picker', reticle: '✅', cleanshot: '✅', shottr: '✅', snagit: '✅', flameshot: '❌' },
+  { feature: 'Color picker', reticle: '✅', cleanshot: '✅', shottr: '✅', snagit: '✅', flameshot: '❌' },
+  { feature: 'Clipboard history', reticle: '✅', cleanshot: '✅', shottr: '❌', snagit: '❌', flameshot: '❌' },
+  { feature: 'OCR', reticle: '✅', cleanshot: '✅', shottr: '✅', snagit: '✅', flameshot: '❌' },
+  { feature: 'Pin to screen', reticle: '✅', cleanshot: '✅', shottr: '❌', snagit: '❌', flameshot: '❌' },
+  { feature: 'Cloud uploads', reticle: '✅', cleanshot: '✅', shottr: '❌', snagit: '✅', flameshot: '❌' },
+  { feature: 'Workflow automation', reticle: '✅', cleanshot: 'partial', shottr: '❌', snagit: '✅', flameshot: '❌' },
+  { feature: 'Display P3 color space', reticle: '✅', cleanshot: '✅', shottr: '❓', snagit: '❓', flameshot: '❌' },
+];
+---
+
+<BaseLayout>
+  <Header active="home" />
+
+  <!-- Hero -->
+  <section class="pt-40 pb-24 px-6 text-center relative overflow-hidden">
+    <!-- subtle grid background -->
+    <div class="absolute inset-0 opacity-[0.03]"
+      style="background-image: linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px); background-size: 40px 40px;">
+    </div>
+    <!-- reticle glow -->
+    <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full opacity-10"
+      style="background: radial-gradient(circle, #E8442A 0%, transparent 70%);">
+    </div>
+
+    <div class="relative max-w-3xl mx-auto">
+      <div class="inline-flex items-center gap-2 bg-surface-raised border border-surface-border rounded-full px-3 py-1 text-xs text-text-secondary mb-8">
+        <span class="w-1.5 h-1.5 rounded-full bg-accent inline-block"></span>
+        Alpha — build from source
+      </div>
+
+      <h1 class="text-5xl sm:text-6xl font-bold tracking-tight leading-tight mb-6">
+        The ShareX of macOS.<br/>
+        <span class="text-accent">Completely free.</span>
+      </h1>
+
+      <p class="text-lg text-text-secondary max-w-xl mx-auto mb-10 leading-relaxed">
+        Reticle is a native macOS screenshot tool with a ShareX-style freeze overlay,
+        21 annotation tools, workflow automation, and cloud upload — built in SwiftUI + AppKit.
+      </p>
+
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+        <a
+          href="https://github.com/croc100/Reticle/releases"
+          class="inline-flex items-center gap-2 bg-accent hover:bg-accent-dim transition-colors text-white font-semibold px-6 py-3 rounded-lg text-sm"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/>
+          </svg>
+          Download for macOS
+        </a>
+        <a
+          href="https://github.com/croc100/Reticle"
+          class="inline-flex items-center gap-2 border border-surface-border hover:border-text-secondary transition-colors text-text-secondary hover:text-text-primary font-medium px-6 py-3 rounded-lg text-sm"
+        >
+          View on GitHub
+        </a>
+      </div>
+
+      <p class="mt-5 text-xs text-text-secondary">
+        macOS 13+ · Apple Silicon & Intel · Free forever
+        <span class="mx-2 opacity-30">|</span>
+        <span class="opacity-50">기엽이는 유료입니다 ☕</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Divider -->
+  <div class="max-w-5xl mx-auto px-6">
+    <div class="border-t border-surface-border"></div>
+  </div>
+
+  <!-- 21 Annotation Tools -->
+  <section class="py-24 px-6">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-14">
+        <h2 class="text-3xl font-bold mb-3">21 Annotation Tools</h2>
+        <p class="text-text-secondary">ShareX-style toolbar that slides in from the top. Each tool is <strong class="text-text-primary">sticky</strong> — stays active until you switch.</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {tools.map(t => (
+          <div class="flex items-start gap-3 bg-surface-raised border border-surface-border rounded-xl p-4 hover:border-accent/30 transition-colors">
+            <span class="text-xl w-7 text-center flex-shrink-0 mt-0.5">{t.icon}</span>
+            <div>
+              <div class="text-sm font-medium text-text-primary">{t.name}</div>
+              {t.note && <div class="text-xs text-text-secondary mt-0.5">{t.note}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature columns -->
+  <section class="py-16 px-6 bg-surface-raised border-y border-surface-border">
+    <div class="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
+      <!-- Capture modes -->
+      <div>
+        <h3 class="font-semibold text-sm uppercase tracking-widest text-text-secondary mb-5">Capture</h3>
+        <ul class="space-y-2">
+          {captures.map(([label, status]) => (
+            <li class="flex items-center gap-2.5 text-sm">
+              <span class="text-base">{status}</span>
+              <span class="text-text-secondary">{label}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <!-- After capture -->
+      <div>
+        <h3 class="font-semibold text-sm uppercase tracking-widest text-text-secondary mb-5">After Capture</h3>
+        <ul class="space-y-2">
+          {afterCapture.map(([label, status]) => (
+            <li class="flex items-center gap-2.5 text-sm">
+              <span class="text-base">{status}</span>
+              <span class="text-text-secondary">{label}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <!-- Uploads -->
+      <div>
+        <h3 class="font-semibold text-sm uppercase tracking-widest text-text-secondary mb-5">Uploads</h3>
+        <ul class="space-y-2">
+          {uploads.map(([label, status]) => (
+            <li class="flex items-center gap-2.5 text-sm">
+              <span class="text-base">{status}</span>
+              <span class="text-text-secondary">{label}</span>
+            </li>
+          ))}
+        </ul>
+        <div class="mt-8">
+          <h3 class="font-semibold text-sm uppercase tracking-widest text-text-secondary mb-5">Utilities</h3>
+          <ul class="space-y-2">
+            {[
+              'Color picker (loupe + HEX copy)',
+              'Clipboard history (⌘⇧V)',
+              'OCR result panel',
+              'Workflow profiles',
+              'Customizable global hotkeys',
+            ].map(u => (
+              <li class="flex items-center gap-2.5 text-sm">
+                <span class="text-base">✅</span>
+                <span class="text-text-secondary">{u}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison table -->
+  <section class="py-24 px-6">
+    <div class="max-w-5xl mx-auto">
+      <div class="text-center mb-14">
+        <h2 class="text-3xl font-bold mb-3">How it stacks up</h2>
+        <p class="text-text-secondary">Honest comparison against the most popular macOS screenshot tools.</p>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-surface-border">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-surface-raised border-b border-surface-border">
+              <th class="text-left px-5 py-3.5 text-text-secondary font-medium w-1/3">Feature</th>
+              <th class="px-4 py-3.5 font-semibold text-accent">Reticle</th>
+              <th class="px-4 py-3.5 text-text-secondary font-medium">CleanShot X</th>
+              <th class="px-4 py-3.5 text-text-secondary font-medium">Shottr</th>
+              <th class="px-4 py-3.5 text-text-secondary font-medium">Snagit</th>
+              <th class="px-4 py-3.5 text-text-secondary font-medium">Flameshot</th>
+            </tr>
+          </thead>
+          <tbody>
+            {compare.map((row, i) => (
+              <tr class={`border-b border-surface-border ${i % 2 === 0 ? 'bg-surface' : 'bg-surface-raised/50'} hover:bg-surface-raised transition-colors`}>
+                <td class="px-5 py-3 text-text-secondary">{row.feature}</td>
+                <td class="px-4 py-3 text-center font-medium text-accent">{row.reticle}</td>
+                <td class="px-4 py-3 text-center text-text-secondary">{row.cleanshot}</td>
+                <td class="px-4 py-3 text-center text-text-secondary">{row.shottr}</td>
+                <td class="px-4 py-3 text-center text-text-secondary">{row.snagit}</td>
+                <td class="px-4 py-3 text-center text-text-secondary">{row.flameshot}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Coming soon -->
+  <section class="py-16 px-6 bg-surface-raised border-y border-surface-border">
+    <div class="max-w-5xl mx-auto">
+      <h2 class="text-2xl font-bold mb-8">Coming Soon</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[
+          ['Screen recording', 'GIF & MP4'],
+          ['QR code', 'Generate & scan'],
+          ['Static Mask', 'Register regions once, auto-redact every capture'],
+          ['Vision PII detection', 'Auto-detect emails, phone numbers, API keys, JWTs'],
+          ['Watch folder', 'Auto-process on save'],
+          ['Homebrew Cask', 'brew install --cask reticle'],
+        ].map(([title, desc]) => (
+          <div class="flex gap-3 p-4 rounded-xl border border-dashed border-surface-border">
+            <span class="text-lg mt-0.5">🔜</span>
+            <div>
+              <div class="text-sm font-medium text-text-primary">{title}</div>
+              <div class="text-xs text-text-secondary mt-0.5">{desc}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Install CTA -->
+  <section class="py-24 px-6 text-center">
+    <div class="max-w-2xl mx-auto">
+      <h2 class="text-3xl font-bold mb-4">Get started</h2>
+      <p class="text-text-secondary mb-4">
+        Signed DMG and Homebrew coming with v1.0. Build from source until then.
+      </p>
+      <pre class="bg-surface-raised border border-surface-border rounded-xl px-6 py-4 text-sm font-mono text-left inline-block text-text-secondary mb-8 overflow-x-auto max-w-full"><code><span class="text-text-secondary opacity-50">$</span> <span class="text-text-primary">git clone https://github.com/croc100/Reticle.git</span>
+<span class="text-text-secondary opacity-50">$</span> <span class="text-text-primary">cd Reticle && swift build -c release</span></code></pre>
+      <p class="text-xs text-text-secondary">
+        Grant <strong class="text-text-primary">Screen Recording</strong> permission on first launch.<br />
+        Grant <strong class="text-text-primary">Accessibility</strong> permission for scroll capture and hotkey recording.
+      </p>
+    </div>
+  </section>
+
+  <Footer />
+</BaseLayout>

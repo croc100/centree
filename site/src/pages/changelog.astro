@@ -1,0 +1,108 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+
+const releases = [
+  {
+    version: '0.1.0-alpha',
+    date: '2025-05-30',
+    tag: 'alpha',
+    changes: {
+      added: [
+        'Region capture with freeze overlay',
+        'Full-screen and per-monitor capture',
+        'Window capture (click-to-pick)',
+        'Scrolling screenshot',
+        'Saved regions and last-region repeat',
+        'Auto capture with configurable interval',
+        '21 annotation tools — shapes, text, effects, insert',
+        'Sticky tool mode (tools stay active after placing)',
+        'Blur with expanded-crop for edge accuracy',
+        'Pixelate, Blackout, Spotlight, Magnify effects',
+        'Undo / Redo (⌘Z)',
+        'Copy to clipboard, save to file, desktop notification',
+        'OCR via Vision framework',
+        'Pin to screen (floating image overlay)',
+        'Clipboard history (⌘⇧V, last 30 items)',
+        'Color picker panel',
+        'Imgur, S3/B2/R2, FTP/SFTP, custom HTTP uploaders',
+        'Workflow profiles (hotkey → capture → upload)',
+        'Pixel-perfect capture (Display P3 color space preserved)',
+        'Filename token parser (%year%, %counter%, %app%, …)',
+      ],
+      fixed: [],
+      changed: [],
+    },
+  },
+];
+---
+
+<BaseLayout title="Changelog — Reticle">
+  <Header active="changelog" />
+
+  <div class="max-w-3xl mx-auto px-6 pt-28 pb-24">
+    <h1 class="text-4xl font-bold mb-2">Changelog</h1>
+    <p class="text-text-secondary mb-14">All notable changes to Reticle, most recent first.</p>
+
+    <div class="space-y-14">
+      {releases.map(r => (
+        <article>
+          <div class="flex items-baseline gap-3 mb-6">
+            <h2 class="text-xl font-semibold text-text-primary">v{r.version}</h2>
+            <span class={`text-xs font-medium px-2 py-0.5 rounded-full ${
+              r.tag === 'alpha' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
+              r.tag === 'beta'  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' :
+                                  'bg-green-500/10 text-green-400 border border-green-500/20'
+            }`}>{r.tag}</span>
+            <span class="text-sm text-text-secondary ml-auto">{r.date}</span>
+          </div>
+
+          {r.changes.added.length > 0 && (
+            <div class="mb-6">
+              <h3 class="text-xs font-semibold uppercase tracking-widest text-green-400 mb-3">Added</h3>
+              <ul class="space-y-2">
+                {r.changes.added.map(item => (
+                  <li class="flex gap-2.5 text-sm text-text-secondary">
+                    <span class="text-green-400 flex-shrink-0 mt-0.5">+</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {r.changes.fixed.length > 0 && (
+            <div class="mb-6">
+              <h3 class="text-xs font-semibold uppercase tracking-widest text-blue-400 mb-3">Fixed</h3>
+              <ul class="space-y-2">
+                {r.changes.fixed.map(item => (
+                  <li class="flex gap-2.5 text-sm text-text-secondary">
+                    <span class="text-blue-400 flex-shrink-0 mt-0.5">~</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {r.changes.changed.length > 0 && (
+            <div>
+              <h3 class="text-xs font-semibold uppercase tracking-widest text-yellow-400 mb-3">Changed</h3>
+              <ul class="space-y-2">
+                {r.changes.changed.map(item => (
+                  <li class="flex gap-2.5 text-sm text-text-secondary">
+                    <span class="text-yellow-400 flex-shrink-0 mt-0.5">↻</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </article>
+      ))}
+    </div>
+  </div>
+
+  <Footer />
+</BaseLayout>
