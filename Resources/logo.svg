@@ -1,24 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1">
-      <stop offset="0%" stop-color="#2D6A4F"/>
-      <stop offset="100%" stop-color="#1B4332"/>
-    </linearGradient>
-  </defs>
-
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <!-- Background -->
-  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="#000000"/>
 
-  <!--
-    Golden ratio proportions:
-      Total tree height 800 / leaf block height 480 = 1.667 ≈ φ
-      Leaf width 582  / trunk width 138            = 4.217 ≈ φ³
-      Tree is vertically centered: padding top/bottom = (1024-800)/2 = 112px
-  -->
+  <!-- Top-left rectangle (large) -->
+  <rect x="22" y="22" width="314" height="174" fill="#ffffff"/>
 
-  <!-- Leaf block -->
-  <rect x="221" y="112" width="582" height="480" rx="12" fill="white"/>
+  <!-- Center-right rectangle (small) -->
+  <rect x="290" y="206" width="98" height="76" fill="#ffffff"/>
 
-  <!-- Trunk -->
-  <rect x="443" y="592" width="138" height="320" rx="10" fill="white"/>
+  <!-- Bottom rectangle (tall) -->
+  <rect x="104" y="308" width="202" height="192" fill="#ffffff"/>
 </svg>
