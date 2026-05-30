@@ -27,6 +27,39 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
   </section>
 
   <section class="mb-12">
+    <h2 class="text-xl font-semibold mb-4">How Reticle fits alongside macOS</h2>
+    <p class="text-text-secondary text-sm mb-4">
+      macOS owns <kbd class="bg-black/40 border border-surface-border rounded px-1.5 py-0.5 text-xs font-mono">⌘⇧3</kbd> and <kbd class="bg-black/40 border border-surface-border rounded px-1.5 py-0.5 text-xs font-mono">⌘⇧4</kbd> — don't fight it.
+      Reticle sits right next to them at <kbd class="bg-black/40 border border-surface-border rounded px-1.5 py-0.5 text-xs font-mono">⌘⇧2</kbd>.
+    </p>
+    <div class="overflow-x-auto rounded-xl border border-surface-border">
+      <table class="w-full text-sm">
+        <thead class="bg-surface-raised border-b border-surface-border">
+          <tr>
+            <th class="text-left px-5 py-3 text-text-secondary font-medium">Shortcut</th>
+            <th class="text-left px-5 py-3 text-text-secondary font-medium">What it does</th>
+            <th class="text-left px-5 py-3 text-text-secondary font-medium">Who owns it</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[
+            ['⌘⇧2', 'Region capture with freeze + annotation (Reticle)', 'Reticle'],
+            ['⌘⇧3', 'Full-screen → save to Desktop', 'macOS'],
+            ['⌘⇧4', 'Region → save to Desktop', 'macOS'],
+            ['⌘⇧5', 'Screenshot options panel', 'macOS'],
+          ].map(([key, action, owner]) => (
+            <tr class="border-b border-surface-border last:border-0">
+              <td class="px-5 py-3 font-mono text-sm text-text-primary">{key}</td>
+              <td class="px-5 py-3 text-text-secondary">{action}</td>
+              <td class={`px-5 py-3 text-xs font-medium ${owner === 'Reticle' ? 'text-accent' : 'text-text-secondary'}`}>{owner}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="mb-12">
     <h2 class="text-xl font-semibold mb-4">Default Hotkeys</h2>
     <div class="overflow-x-auto rounded-xl border border-surface-border">
       <table class="w-full text-sm">
@@ -38,12 +71,11 @@ import DocsLayout from '../../layouts/DocsLayout.astro';
         </thead>
         <tbody>
           {[
-            ['Capture Region', '⌃⌘4'],
+            ['Capture Region', '⌘⇧2'],
             ['Capture Full Screen', '⌃⌘3'],
-            ['Capture Window', '⌃⌘2'],
-            ['Repeat Last Region', '⌃⌘R'],
+            ['Repeat Last Region', '—'],
             ['Clipboard History', '⌘⇧V'],
-            ['Color Picker', '⌃⌘C'],
+            ['Color Picker', '—'],
           ].map(([action, key]) => (
             <tr class="border-b border-surface-border last:border-0">
               <td class="px-5 py-3 text-text-secondary">{action}</td>

@@ -187,7 +187,17 @@ Grant **Accessibility** permission for scroll capture and hotkey recording.
 
 ---
 
-## Keyboard Shortcuts (in the annotation overlay)
+## Keyboard Shortcuts
+
+### Global (works from any app)
+
+| Key | Action |
+|---|---|
+| `⌘⇧2` | **Reticle Region Capture** — freeze + annotate |
+| `⌘⇧3` | macOS full-screen (system default, untouched) |
+| `⌘⇧4` | macOS region (system default, untouched) |
+
+### In the annotation overlay
 
 | Key | Action |
 |---|---|
