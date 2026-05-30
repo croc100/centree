@@ -3,6 +3,8 @@ import tailwind from '@astrojs/tailwind';
 
 export default defineConfig({
   integrations: [tailwind()],
-  site: 'https://reticle.app',
+  site: 'https://croc100.github.io',
+  base: '/Reticle',
   output: 'static',
+  trailingSlash: 'always',
 });
