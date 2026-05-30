@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640">
+  <!-- Background -->
+  <rect width="1280" height="640" fill="#0d0d10"/>
+
+  <!-- Subtle grid -->
+  <defs>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="white" stroke-width="0.4" opacity="0.04"/>
+    </pattern>
+    <radialGradient id="glow" cx="38%" cy="50%" r="45%">
+      <stop offset="0%" stop-color="#E8442A" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#E8442A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="640" fill="url(#grid)"/>
+  <rect width="1280" height="640" fill="url(#glow)"/>
+
+  <!-- Logo mark (spider, scaled ~4× from 512px version) -->
+  <rect x="80" y="200" width="200" height="200" rx="43" fill="#111114"/>
+  <g transform="translate(113 213) scale(5.556)"
+     stroke="white" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M5 4v2l5 5"/>
+    <path d="M2.5 9.5l1.5 1.5h6"/>
+    <path d="M4 19v-2l6 -6"/>
+    <path d="M19 4v2l-5 5"/>
+    <path d="M21.5 9.5l-1.5 1.5h-6"/>
+    <path d="M20 19v-2l-6 -6"/>
+    <path d="M8 15a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/>
+    <path d="M10 9a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/>
+  </g>
+
+  <!-- Wordmark -->
+  <text x="310" y="308"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif"
+        font-size="96" font-weight="700" letter-spacing="-3"
+        fill="white">Reticle</text>
+
+  <!-- Tagline -->
+  <text x="312" y="372"
+        font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif"
+        font-size="28" font-weight="400"
+        fill="#8A8A96">The ShareX of macOS. Free &amp; open source.</text>
+
+  <!-- Divider -->
+  <line x1="80" y1="460" x2="1200" y2="460" stroke="#2A2A30" stroke-width="1"/>
+
+  <!-- Feature pills -->
+  <g font-family="-apple-system, BlinkMacSystemFont, sans-serif" font-size="22" fill="#8A8A96">
+    <text x="80"  y="510">✅ 21 Annotation Tools</text>
+    <text x="360" y="510">✅ Blur / Pixelate / OCR</text>
+    <text x="660" y="510">✅ Cloud Upload</text>
+    <text x="870" y="510">✅ Workflow Automation</text>
+  </g>
+
+  <!-- github.com label -->
+  <text x="1200" y="610"
+        font-family="-apple-system, BlinkMacSystemFont, sans-serif"
+        font-size="20" fill="#3A3A46" text-anchor="end">
+    github.com/croc100/Reticle
+  </text>
+</svg>

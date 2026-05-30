@@ -9,10 +9,13 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/croc100/Reticle/actions/workflows/ci.yml">
+    <img src="https://github.com/croc100/Reticle/actions/workflows/ci.yml/badge.svg" alt="CI" />
+  </a>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-blue" />
   <img src="https://img.shields.io/badge/swift-5.9%2B-orange" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-green" />
-  <img src="https://img.shields.io/badge/status-alpha-yellow" />
+  <img src="https://img.shields.io/github/v/release/croc100/Reticle?include_prereleases&label=release&color=yellow" />
 </p>
 
 <p align="center">
