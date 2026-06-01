@@ -15,14 +15,25 @@
     <string>0.1.0</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
-    <!-- 독 아이콘 숨김 (setActivationPolicy와 동일 효과, 번들 레벨에서 선언) -->
+    <key>CFBundleExecutable</key>
+    <string>Reticle</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+    <!-- 메뉴바 전용 앱 — Dock 아이콘 없음 -->
     <key>LSUIElement</key>
     <true/>
     <!-- Retina 지원 -->
     <key>NSHighResolutionCapable</key>
     <true/>
-    <!-- Screen Recording 권한 설명 (시스템 다이얼로그에 표시됨) -->
+    <!-- 최소 macOS 버전 -->
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <!-- 권한 사용 설명 (시스템 다이얼로그에 표시) -->
     <key>NSScreenCaptureUsageDescription</key>
-    <string>Reticle needs Screen Recording access to take screenshots.</string>
+    <string>Reticle needs Screen Recording access to capture your screen.</string>
+    <key>NSAccessibilityUsageDescription</key>
+    <string>Reticle needs Accessibility access for scroll capture and global hotkey recording.</string>
 </dict>
 </plist>

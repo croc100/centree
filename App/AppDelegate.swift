@@ -8,8 +8,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Dock 아이콘 숨김 — 메뉴바 전용 앱
         NSApp.setActivationPolicy(.accessory)
 
-        // 권한이 없으면 System Settings로 안내
-        Task { await checkScreenRecordingPermission() }
+        // 첫 실행이면 온보딩, 아니면 권한 체크
+        if !UserDefaults.standard.bool(forKey: "onboardingCompleted") {
+            OnboardingWindowController.shared.showIfNeeded()
+        } else {
+            Task { await checkScreenRecordingPermission() }
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
