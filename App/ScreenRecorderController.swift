@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UserNotifications
 import Defaults
 import ReticleRecorder
 import ReticleCore
@@ -93,12 +94,20 @@ final class ScreenRecorderController: ObservableObject {
             NSPasteboard.general.setString(url.path, forType: .string)
         }
 
-        // Desktop notification
+        // Desktop notification (UNUserNotificationCenter — required on macOS 14+)
         if Defaults[.recordingShowNotification] {
-            let notification = NSUserNotification()
-            notification.title = "Recording saved"
-            notification.informativeText = url.lastPathComponent
-            NSUserNotificationCenter.default.deliver(notification)
+            let center = UNUserNotificationCenter.current()
+            // Request permission if not yet granted (silent no-op if already decided)
+            let _ = try? await center.requestAuthorization(options: [.alert, .sound])
+            let content = UNMutableNotificationContent()
+            content.title = "Recording saved"
+            content.body = url.lastPathComponent
+            let request = UNNotificationRequest(
+                identifier: UUID().uuidString,
+                content: content,
+                trigger: nil  // deliver immediately
+            )
+            try? await center.add(request)
         }
 
         // Open in Finder

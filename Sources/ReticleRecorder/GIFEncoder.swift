@@ -69,8 +69,7 @@ final class GIFEncoder {
         ]
         CGImageDestinationSetProperties(dest, globalProps as CFDictionary)
 
-        // Frame-level properties — GIF delay is in centiseconds (1/100 s)
-        let centiseconds = Int(frameDuration * 100)
+        // Frame-level properties — GIF delay is in seconds (ImageIO handles centisecond conversion)
         let frameProps: [CFString: Any] = [
             kCGImagePropertyGIFDictionary: [
                 kCGImagePropertyGIFDelayTime: frameDuration,
@@ -79,9 +78,9 @@ final class GIFEncoder {
         ]
 
         for frame in frames {
-            // Downsample large frames — GIF looks fine at half resolution
-            // and palette quantization artifacts are less visible.
-            let image = frame.delay > 0 ? downscaleIfNeeded(frame.image, maxDimension: 1280) : frame.image
+            // Downsample large frames — GIF looks fine at ≤1280px wide
+            // and palette quantization artifacts are less visible at smaller sizes.
+            let image = downscaleIfNeeded(frame.image, maxDimension: 1280)
             CGImageDestinationAddImage(dest, image, frameProps as CFDictionary)
         }
 
@@ -89,7 +88,6 @@ final class GIFEncoder {
             throw RecordingError.encoderFailure("CGImageDestinationFinalize failed.")
         }
 
-        _ = centiseconds  // suppress unused-variable warning
         return outputURL
     }
 

@@ -60,14 +60,23 @@ public final class ScreenRecorder: NSObject {
         streamConfig.showsCursor = true
         streamConfig.pixelFormat = kCVPixelFormatType_32BGRA
 
-        // Crop to the requested rect if provided
+        // Crop to the requested rect if provided.
+        // `config.captureRect` is in global screen coordinates; SCStreamConfiguration
+        // expects `sourceRect` in display-local points (origin at the display's top-left).
         if let rect = config.captureRect {
             let scale = display.frame.width > 0
                 ? CGFloat(display.width) / display.frame.width
                 : 1.0
-            streamConfig.sourceRect = rect
-            streamConfig.width  = Int(rect.width  * scale)
-            streamConfig.height = Int(rect.height * scale)
+            // Translate global → display-local (handles multi-monitor layouts)
+            let localRect = CGRect(
+                x: rect.minX - display.frame.minX,
+                y: rect.minY - display.frame.minY,
+                width: rect.width,
+                height: rect.height
+            )
+            streamConfig.sourceRect = localRect
+            streamConfig.width  = Int(localRect.width  * scale)
+            streamConfig.height = Int(localRect.height * scale)
         } else {
             streamConfig.width  = display.width
             streamConfig.height = display.height
@@ -176,7 +185,16 @@ extension ScreenRecorder: SCStreamOutput {
                 let pixelBuffer = sampleBuffer.imageBuffer,
                 let image = cgImage(from: pixelBuffer)
             else { return }
-            try? encoder.append(image)
+            do {
+                try encoder.append(image)
+            } catch {
+                // Frame limit exceeded — auto-stop on the main actor so the
+                // UI updates cleanly (same path as a user pressing Stop).
+                Task { @MainActor [weak self] in
+                    guard let self, case .recording = self.state else { return }
+                    _ = try? await self.stop()
+                }
+            }
         }
     }
 

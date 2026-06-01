@@ -16,6 +16,9 @@
   <img src="https://img.shields.io/badge/swift-5.9%2B-orange" />
   <img src="https://img.shields.io/badge/license-AGPL--3.0-green" />
   <img src="https://img.shields.io/github/v/release/croc100/Reticle?include_prereleases&label=release&color=yellow" />
+  <a href="https://github.com/croc100/homebrew-reticle">
+    <img src="https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew" alt="Homebrew tap" />
+  </a>
 </p>
 
 <p align="center">
@@ -51,6 +54,7 @@ Most macOS screenshot tools are either too simple (built-in Screenshot.app) or t
 | Auto capture (interval timer) | ✅ |
 | Capture delay (countdown) | ✅ |
 | ShareX-style instant capture (drag or click) | ✅ |
+| **Screen recording (MP4 / GIF)** | ✅ |
 
 ### Annotation Tools
 
@@ -104,6 +108,15 @@ Each tool is **sticky** — stays active until you switch to another.
 | Google Drive / Dropbox | 🔜 |
 | URL shortener | 🔜 |
 
+### Recording
+
+| Feature | Notes |
+|---|---|
+| MP4 (H.264) | Configurable FPS (default 30), 8 Mbps |
+| Animated GIF | Auto-downscale to 1280 px, 30 s cap |
+| Menu bar timer | Live elapsed time, stop from menu bar |
+| After recording | Copy path · Notification · Reveal in Finder |
+
 ### Utilities
 
 | Tool | Status |
@@ -136,6 +149,7 @@ Each tool is **sticky** — stays active until you switch to another.
 | Pin to screen | ✅ | ✅ | ❌ | ❌ | ❌ |
 | Cloud uploads | ✅ | ✅ | ❌ | ✅ | ❌ |
 | Workflow automation | ✅ | partial | ❌ | ✅ | ❌ |
+| Screen recording (MP4/GIF) | ✅ | ✅ | ❌ | ✅ | ❌ |
 | Pixel-perfect capture | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Display P3 color space preserved | ✅ | ✅ | ❓ | ❓ | ❌ |
 | **Static Mask (auto-redact regions)** | 🔜 | ❌ | ❌ | ❌ | ❌ |
@@ -153,7 +167,7 @@ ShareX is the undisputed best screenshot tool — on Windows. Reticle aims for *
 | Annotation toolbar (21 tools) | ✅ | ✅ |
 | Workflow / after-capture pipeline | ✅ | ✅ |
 | Cloud upload destinations | ✅ | ✅ |
-| Screen recording | 🔜 | ✅ |
+| Screen recording (MP4 / GIF) | ✅ | ✅ |
 
 ---
 
@@ -235,6 +249,7 @@ ReticleApp          — Menu bar app, hotkey wiring, capture coordinator
 ├── ReticleOverlay  — Full-screen freeze overlay + annotation toolbar (SwiftUI + AppKit)
 ├── ReticleEffects  — CoreImage blur / pixelate / mask rendering
 ├── ReticlePipeline — Capture → AfterCapture → Output → AfterOutput task chain
+├── ReticleRecorder — Screen recording: SCStream → MP4 (AVAssetWriter) / GIF (ImageIO)
 ├── ReticleNaming   — Filename token parser (%year%, %counter%, %app%, …)
 ├── ReticleVision   — Vision framework OCR + PII detector
 ├── ReticleWorkflow — Hotkey → workflow profile binding
