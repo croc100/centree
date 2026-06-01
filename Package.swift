@@ -22,8 +22,8 @@ let package = Package(
         .package(url: "https://github.com/soffes/HotKey", from: "0.2.0"),
         // Type-safe UserDefaults wrapper with observation support
         .package(url: "https://github.com/sindresorhus/Defaults", from: "7.0.0"),
-        // macOS auto-update standard — appcast XML, delta updates, UI built-in
-        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.0.0"),
+        // Sparkle auto-update — add back when v1.0 ships with signed DMG + appcast
+        // .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.0.0"),
     ],
     targets: [
         // MARK: - App Executable
@@ -44,7 +44,6 @@ let package = Package(
                 "ReticleUploaders",
                 .product(name: "HotKey", package: "HotKey"),
                 .product(name: "Defaults", package: "Defaults"),
-                .product(name: "Sparkle", package: "Sparkle"),
             ],
             path: "App",
             exclude: ["Reticle.entitlements", "Info.plist"]
