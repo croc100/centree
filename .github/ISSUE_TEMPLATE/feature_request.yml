@@ -2,11 +2,17 @@ name: Feature Request
 description: Suggest a new feature or improvement
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Got an idea? We'd love to hear it.
+        Check the [roadmap](https://github.com/croc100/Reticle/discussions/categories/roadmap) first — it might already be planned.
+
   - type: textarea
     id: problem
     attributes:
       label: What problem does this solve?
-      description: Describe the use case or pain point.
+      description: Describe the use case or pain point. "I want to be able to…"
     validations:
       required: true
 
@@ -14,7 +20,7 @@ body:
     id: solution
     attributes:
       label: Proposed solution
-      description: What would you like to happen?
+      description: What would you like Reticle to do? Mockups or ShareX equivalents are helpful.
     validations:
       required: true
 
@@ -22,7 +28,18 @@ body:
     id: alternatives
     attributes:
       label: Alternatives considered
-      description: Other approaches you thought about.
+      description: Any workarounds or other tools that partially solve this?
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: How important is this to you?
+      options:
+        - Nice to have
+        - Would use it regularly
+        - Blocking me from using Reticle
+    validations:
+      required: true
 
   - type: checkboxes
     id: checklist
@@ -31,4 +48,3 @@ body:
       options:
         - label: I searched existing issues and this has not been requested before
           required: true
-        - label: This fits within the stated MVP or v1.0 scope

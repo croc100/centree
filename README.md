@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2013%2B-blue" />
   <img src="https://img.shields.io/badge/swift-5.9%2B-orange" />
-  <img src="https://img.shields.io/badge/license-AGPL--3.0-green" />
+  <img src="https://img.shields.io/badge/license-Apache%202.0-blue" />
   <img src="https://img.shields.io/github/v/release/croc100/Reticle?include_prereleases&label=release&color=yellow" />
   <a href="https://github.com/croc100/homebrew-reticle">
     <img src="https://img.shields.io/badge/homebrew-tap-orange?logo=homebrew" alt="Homebrew tap" />
@@ -259,16 +259,14 @@ ReticleApp          — Menu bar app, hotkey wiring, capture coordinator
 
 ---
 
-## License
-
-[GNU Affero General Public License v3.0](LICENSE)
-
-Free for open-source use. Commercial use without AGPL compliance requires a separate license.
-
-> 기엽이는 무조건 유료. 협상 없음.
-
 ## Contributing
 
-PRs welcome. Open an issue first for large changes.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
 
-© Reticle Contributors
+For bug reports and feature requests, use the [issue templates](.github/ISSUE_TEMPLATE/).
+
+## License
+
+[Apache License 2.0](LICENSE) — free to use, modify, and distribute, including commercially.
+
+© 2024 Reticle Contributors

@@ -1,17 +1,34 @@
 name: Bug Report
-description: Something is broken
-labels: ["bug"]
+description: Something isn't working correctly
+labels: ["bug", "needs triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report!
+        Thanks for taking the time to report a bug.
+        Please fill in as much detail as possible — it helps us fix things faster.
+
+  - type: input
+    id: version
+    attributes:
+      label: Reticle version
+      placeholder: "e.g. 0.2.0  (Help menu → About Reticle)"
+    validations:
+      required: true
+
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version + chip
+      placeholder: "e.g. macOS 14.5 Sonoma, Apple Silicon (M2)"
+    validations:
+      required: true
 
   - type: textarea
     id: description
     attributes:
       label: What happened?
-      description: A clear description of the bug.
+      description: A clear description of the bug. What did you see vs. what you expected?
     validations:
       required: true
 
@@ -20,37 +37,28 @@ body:
     attributes:
       label: Steps to reproduce
       placeholder: |
-        1. Press hotkey ...
-        2. Drag region ...
-        3. See error
-    validations:
-      required: true
-
-  - type: textarea
-    id: expected
-    attributes:
-      label: Expected behavior
-    validations:
-      required: true
-
-  - type: input
-    id: version
-    attributes:
-      label: Reticle version
-      placeholder: "e.g. 0.1.0"
-    validations:
-      required: true
-
-  - type: input
-    id: macos
-    attributes:
-      label: macOS version
-      placeholder: "e.g. macOS 14.4"
+        1. Open Reticle from the menu bar
+        2. Press ⌘⇧2 to start region capture
+        3. Drag a selection
+        4. Click the Blur tool
+        5. App crashes / shows wrong result / …
     validations:
       required: true
 
   - type: textarea
     id: logs
     attributes:
-      label: Crash log / Console output
-      render: shell
+      label: Console output (if any)
+      description: |
+        Open **Console.app** → search for "Reticle" → paste relevant lines here.
+        Or attach a crash report from ~/Library/Logs/DiagnosticReports/.
+      render: text
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have granted Screen Recording permission to Reticle (System Settings → Privacy → Screen Recording)
+        - label: I searched existing issues and this is not a duplicate
+          required: true
